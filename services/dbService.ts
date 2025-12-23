@@ -1,5 +1,5 @@
 
-import { Note, StorageState } from '../types';
+import { Note, StorageState } from '../types.ts';
 
 const STORAGE_KEY = 'notas_rapidas_storage';
 

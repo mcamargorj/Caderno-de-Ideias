@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Note, NoteColor } from '../types';
-import { Button } from './Button';
+import { Note, NoteColor } from '../types.ts';
+import { Button } from './Button.tsx';
 
 interface NoteFormProps {
   note?: Note;
@@ -71,7 +71,7 @@ export const NoteForm: React.FC<NoteFormProps> = ({ note, onSave, onCancel }) =>
                 <button
                   key={key}
                   type="button"
-                  onClick={() => setColor(val)}
+                  onClick={() => setColor(val as NoteColor)}
                   className={`w-10 h-10 rounded-full border-2 transition-all ${val} ${color === val ? 'border-indigo-600 scale-110 shadow-md' : 'border-transparent hover:scale-105'}`}
                 />
               ))}
