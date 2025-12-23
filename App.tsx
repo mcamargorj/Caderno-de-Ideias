@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Note, NoteColor } from './types';
-import { storageService } from './services/dbService';
-import { NoteCard } from './components/NoteCard';
-import { NoteForm } from './components/NoteForm';
-import { Button } from './components/Button';
+import { Note } from './types.ts';
+import { storageService } from './services/dbService.ts';
+import { NoteCard } from './components/NoteCard.tsx';
+import { NoteForm } from './components/NoteForm.tsx';
+import { Button } from './components/Button.tsx';
 
 const App: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>([]);

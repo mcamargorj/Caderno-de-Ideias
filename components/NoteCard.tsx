@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
-import { Note, NoteColor } from '../types';
-import { Button } from './Button';
-import { enhanceNote } from '../services/geminiService';
+import { Note } from '../types.ts';
+import { Button } from './Button.tsx';
+import { enhanceNote } from '../services/geminiService.ts';
 
 interface NoteCardProps {
   note: Note;

@@ -1,9 +1,20 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-export const enhanceNote = async (content: string): Promise<string> => {
+const getApiKey = () => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+    return process.env.API_KEY || '';
+  } catch {
+    return '';
+  }
+};
+
+export const enhanceNote = async (content: string): Promise<string> => {
+  const apiKey = getApiKey();
+  if (!apiKey) return content;
+
+  try {
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Melhore o seguinte conteúdo de nota. Torne-o claro, organizado e profissional, mantendo a intenção original. RESPONDA APENAS EM PORTUGUÊS. Retorne apenas o texto melhorado sem introduções: \n\n"${content}"`,
@@ -17,8 +28,11 @@ export const enhanceNote = async (content: string): Promise<string> => {
 };
 
 export const summarizeNote = async (content: string): Promise<string> => {
+  const apiKey = getApiKey();
+  if (!apiKey) return content;
+
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Forneça um resumo muito curto de 1 frase para esta nota em PORTUGUÊS: \n\n"${content}"`,
