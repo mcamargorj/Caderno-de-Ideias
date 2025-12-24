@@ -104,4 +104,45 @@ const App: React.FC = () => {
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-[50vh] text-center space-y-6">
-            <div className="w-32 h-32 bg-slate-100 rounded-[3rem] flex items-center justify-
+            <div className="w-32 h-32 bg-slate-100 rounded-[3rem] flex items-center justify-center text-slate-300 shadow-inner">
+              <i className="fas fa-lightbulb text-5xl"></i>
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-2xl font-black text-slate-800 tracking-tight">Nenhuma ideia ainda</h3>
+              <p className="text-sm text-slate-400 max-w-[240px] mx-auto font-medium">
+                Sua próxima grande ideia começa com uma simples nota.
+              </p>
+            </div>
+          </div>
+        )}
+      </main>
+
+      <footer className="bg-white border-t py-8 px-8 text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em]">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+          <p>© 2025 Caderno de Ideias • MSCHelp Lab</p>
+          <div className="flex items-center gap-8">
+            <span className="flex items-center gap-2.5">
+              <i className="fas fa-bolt text-amber-400"></i> Gemini 3 Flash (Free Tier)
+            </span>
+            <span className="flex items-center gap-2.5">
+              <i className="fas fa-cloud-sun text-indigo-400"></i> Cloud Native
+            </span>
+          </div>
+        </div>
+      </footer>
+
+      {isFormOpen && (
+        <NoteForm 
+          note={editingNote}
+          onSave={handleSaveNote}
+          onCancel={() => {
+            setIsFormOpen(false);
+            setEditingNote(undefined);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+export default App;
