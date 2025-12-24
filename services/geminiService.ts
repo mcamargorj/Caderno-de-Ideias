@@ -35,10 +35,16 @@ async function decodeAudioData(
 export class GeminiService {
   private audioContext: AudioContext | null = null;
 
-  // @google/genai: Use process.env.API_KEY directly.
-  // Initialization must happen with the named parameter apiKey.
+  /**
+   * Inicializa o cliente seguindo as diretrizes estritas do SDK.
+   * A API_KEY deve estar configurada no ambiente como API_KEY.
+   */
   private getClient() {
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+      console.error("Chave API não encontrada em process.env.API_KEY. Verifique as configurações do Vercel.");
+    }
+    return new GoogleGenAI({ apiKey: apiKey || '' });
   }
 
   private getAudioContext(): AudioContext {
@@ -54,21 +60,19 @@ export class GeminiService {
   async enhanceNote(content: string): Promise<string> {
     try {
       const ai = this.getClient();
+      // 'gemini-3-flash-preview' é o modelo recomendado para tarefas de texto na camada gratuita.
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `Melhore este texto de nota adesiva. Mantenha o sentido original mas torne-o mais claro e profissional. Responda apenas com o texto corrigido em Português: "${content}"`,
       });
       
-      // Accessing response.text property directly as per @google/genai guidelines.
       const text = response.text;
       if (!text) throw new Error("Resposta da IA vazia.");
       return text;
     } catch (error: any) {
       console.error("Gemini Error:", error);
-      
-      // Robust handling for API errors (e.g., 4xx/5xx).
       if (error.status === 429) {
-        throw new Error("Limite de uso atingido. Tente novamente em um minuto.");
+        throw new Error("Limite de cota atingido (Free Tier). Tente novamente em um minuto.");
       }
       throw error;
     }
@@ -77,6 +81,7 @@ export class GeminiService {
   async speak(text: string): Promise<void> {
     try {
       const ai = this.getClient();
+      // 'gemini-2.5-flash-preview-tts' oferece síntese de voz nativa de alta qualidade.
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
         contents: [{ parts: [{ text: text }] }],
@@ -107,9 +112,7 @@ export class GeminiService {
         source.start();
       }
     } catch (error: any) {
-      console.warn("Fallback de voz:", error);
-      
-      // Native speech fallback.
+      console.warn("Fallback de voz ativado:", error);
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'pt-BR';
       window.speechSynthesis.speak(utterance);
