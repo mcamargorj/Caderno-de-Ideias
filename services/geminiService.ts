@@ -37,7 +37,6 @@ export class GeminiService {
 
   private getClient() {
     const apiKey = process.env.API_KEY;
-    // O SDK exige uma string. Se estiver undefined no browser, o erro será capturado aqui.
     return new GoogleGenAI({ apiKey: apiKey || '' });
   }
 
@@ -56,18 +55,23 @@ export class GeminiService {
       const ai = this.getClient();
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Melhore este texto de nota adesiva. Mantenha o sentido original mas torne-o mais claro e profissional. Responda APENAS com o texto corrigido em Português, sem comentários: "${content}"`,
+        contents: `Melhore este texto de nota adesiva. Reescreva-o para ser mais inspirador, claro e bem estruturado. Responda APENAS com o texto melhorado em Português, sem nenhuma introdução ou aspas: "${content}"`,
       });
       
+      // Seguindo a documentação: response.text é uma propriedade getter
       const text = response.text;
-      if (!text) throw new Error("A IA não retornou nenhum texto.");
+      
+      if (!text || text.trim().length === 0) {
+        throw new Error("A IA não retornou um conteúdo válido.");
+      }
+      
       return text.trim();
     } catch (error: any) {
       console.error("Gemini Error (Enhance):", error);
       if (error.status === 429) {
-        throw new Error("Limite de cota atingido. Aguarde um momento.");
+        throw new Error("Cota de IA excedida. Tente novamente em instantes.");
       }
-      throw error;
+      throw new Error("Não foi possível processar com IA agora.");
     }
   }
 
@@ -104,7 +108,7 @@ export class GeminiService {
         source.start();
       }
     } catch (error: any) {
-      console.warn("TTS Gemini falhou, usando voz do sistema:", error);
+      console.warn("Voz IA falhou, usando sistema:", error);
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'pt-BR';
       window.speechSynthesis.speak(utterance);
