@@ -46,49 +46,57 @@ export class GeminiService {
   }
 
   async enhanceNote(content: string): Promise<string> {
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+      throw new Error("Chave de API não configurada no ambiente.");
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
+    
+    // Tentamos primeiro com o modelo Gemini 3 (mais recente)
     try {
-      // Inicialização imediata com a chave do ambiente
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-      
-      // Chamada otimizada usando a estrutura de partes recomendada
+      console.log("Iniciando melhoria de texto com Gemini 3...");
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: { 
-          parts: [{ 
-            text: `Aja como um editor profissional. Melhore o texto desta nota adesiva para torná-lo mais claro, elegante e profissional em Português. Retorne APENAS o texto melhorado, sem aspas ou explicações adicionais. Texto: "${content}"` 
-          }] 
-        },
+        contents: `Instrução: Melhore este texto de nota adesiva, tornando-o mais claro e profissional em Português. Responda APENAS com o texto melhorado. Texto: "${content}"`,
         config: {
-          temperature: 0.8,
-          // Deixamos o modelo decidir o thinking para evitar bloqueios de cota em modelos preview
+          temperature: 0.7,
         },
       });
-      
+
       const text = response.text;
+      if (text) return text.trim();
+      throw new Error("Resposta vazia da IA.");
+    } catch (primaryError: any) {
+      console.warn("Gemini 3 falhou ou está indisponível. Tentando fallback para Gemini Flash Latest...", primaryError);
       
-      if (!text) {
-        throw new Error("A IA não retornou uma resposta válida.");
+      try {
+        // Fallback para o modelo Flash estável
+        const fallbackResponse = await ai.models.generateContent({
+          model: 'gemini-flash-latest',
+          contents: `Aja como um editor. Melhore este texto em Português: "${content}". Retorne apenas o resultado final.`,
+        });
+
+        const fallbackText = fallbackResponse.text;
+        if (fallbackText) return fallbackText.trim();
+        throw new Error("Falha no fallback da IA.");
+      } catch (secondaryError: any) {
+        console.error("Erro crítico em todos os modelos de IA:", secondaryError);
+        
+        if (secondaryError?.status === 429) {
+          throw new Error("Limite de cota atingido (429). Aguarde um minuto.");
+        }
+        
+        throw new Error("Erro de conexão com o servidor da Google.");
       }
-      
-      return text.trim();
-    } catch (error: any) {
-      console.error("Erro detalhado na IA:", error);
-      
-      // Tratamento específico de erros comuns
-      if (error?.status === 429 || error?.message?.includes('429')) {
-        throw new Error("Cota excedida. Tente novamente em 1 min.");
-      }
-      if (error?.message?.includes('API key not valid')) {
-        throw new Error("Chave de API inválida no Vercel.");
-      }
-      
-      throw new Error("IA temporariamente indisponível.");
     }
   }
 
   async speak(text: string): Promise<void> {
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      const apiKey = process.env.API_KEY || '';
+      const ai = new GoogleGenAI({ apiKey });
+      
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
         contents: [{ parts: [{ text: text }] }],
@@ -119,7 +127,7 @@ export class GeminiService {
         source.start();
       }
     } catch (error: any) {
-      console.warn("TTS falhou, usando fallback local:", error);
+      console.warn("TTS Gemini falhou, usando voz nativa do sistema:", error);
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'pt-BR';
       window.speechSynthesis.speak(utterance);

@@ -16,10 +16,9 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Limpa o erro automaticamente para não poluir a nota
   useEffect(() => {
     if (error) {
-      const timer = setTimeout(() => setError(null), 4000);
+      const timer = setTimeout(() => setError(null), 5000);
       return () => clearTimeout(timer);
     }
   }, [error]);
@@ -33,20 +32,24 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
     setIsEnhancing(true);
     setError(null);
 
-    // Pequeno atraso para garantir que a UI renderize o estado de "loading"
-    // e resolva o problema de INP (Interaction to Next Paint)
-    await new Promise(resolve => setTimeout(resolve, 50));
-
-    try {
-      const improved = await geminiService.enhanceNote(note.content);
-      if (improved && improved !== note.content) {
-        onUpdate(note.id, { content: improved });
+    // Forçamos a liberação da thread para resolver o problema de INP
+    // e garantir que o estado 'isEnhancing' seja refletido visualmente antes da chamada de rede
+    requestAnimationFrame(async () => {
+      // Pequeno delay adicional para garantir que o repinte aconteça
+      await new Promise(r => setTimeout(r, 100));
+      
+      try {
+        const improved = await geminiService.enhanceNote(note.content);
+        if (improved && improved !== note.content) {
+          onUpdate(note.id, { content: improved });
+        }
+      } catch (err: any) {
+        console.error("UI Enhance Error:", err);
+        setError(err.message || "IA indisponível");
+      } finally {
+        setIsEnhancing(false);
       }
-    } catch (err: any) {
-      setError(err.message || "Erro inesperado");
-    } finally {
-      setIsEnhancing(false);
-    }
+    });
   };
 
   const handleSpeak = async (e: React.MouseEvent) => {
@@ -59,7 +62,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
     try {
       await geminiService.speak(note.content);
     } catch (err: any) {
-      console.error("Erro ao falar:", err);
+      console.error("Erro ao reproduzir áudio:", err);
     } finally {
       setTimeout(() => setIsSpeaking(false), 2000);
     }
@@ -77,12 +80,11 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
       className={`sticky-note w-full aspect-square ${note.color} p-6 shadow-lg relative flex flex-col cursor-pointer group/card border border-black/5 hover:shadow-2xl transition-all duration-300`}
       onClick={() => !isEnhancing && onEdit(note)}
     >
-      {/* Detalhe de fita adesiva para estética */}
       <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-16 h-8 bg-white/30 rotate-1 pointer-events-none backdrop-blur-sm"></div>
       
       <div className="flex justify-between items-start mb-3">
         <h3 className="text-lg font-black text-slate-800 line-clamp-1 flex-1 tracking-tight pr-2">
-          {note.title || 'Insight'}
+          {note.title || 'Novo Insight'}
         </h3>
         <div className="flex gap-2">
           <button 
@@ -108,7 +110,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
 
       <div className="mt-4 pt-3 border-t border-black/10 flex flex-col gap-2">
         <div className="flex justify-between items-center">
-          <span className={`text-[9px] font-bold uppercase tracking-wider ${error ? 'text-red-600' : 'text-slate-500'}`}>
+          <span className={`text-[9px] font-bold uppercase tracking-wider transition-colors duration-300 ${error ? 'text-red-600' : 'text-slate-500'}`}>
             {error || formattedDate}
           </span>
           
@@ -119,7 +121,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
             onClick={handleEnhance}
             isLoading={isEnhancing}
           >
-            {isEnhancing ? 'PROCESSANDO...' : <><i className="fas fa-wand-magic-sparkles mr-1.5"></i> IA</>}
+            {isEnhancing ? 'PENSANDO...' : <><i className="fas fa-wand-magic-sparkles mr-1.5"></i> IA</>}
           </Button>
         </div>
       </div>
