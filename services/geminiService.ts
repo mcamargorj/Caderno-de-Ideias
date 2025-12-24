@@ -12,7 +12,7 @@ function decode(base64: string) {
   return bytes;
 }
 
-// Helper: Decodifica Raw PCM para AudioBuffer
+// Helper: Decodifica Raw PCM (16-bit LE) para AudioBuffer
 async function decodeAudioData(
   data: Uint8Array,
   ctx: AudioContext,
@@ -46,35 +46,43 @@ export class GeminiService {
   }
 
   async enhanceNote(content: string): Promise<string> {
-    // IMPORTANTE: Instanciar aqui dentro para pegar a chave do process.env.API_KEY atualizada
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) throw new Error("API_KEY_MISSING");
+
+    const ai = new GoogleGenAI({ apiKey });
     
     try {
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Aja como um editor profissional. Melhore o texto desta nota adesiva em Português. Seja conciso e elegante. Retorne apenas o texto final.\n\nTexto: "${content}"`,
-        config: { temperature: 0.7 }
+        contents: `Aja como um editor profissional. Melhore este texto de nota adesiva, tornando-o mais claro e profissional em Português do Brasil. Mantenha o tom original mas melhore a escrita. Responda APENAS com o texto melhorado. Texto: "${content}"`,
+        config: { temperature: 0.7 },
       });
 
-      const text = response.text;
-      if (!text) throw new Error("A IA não retornou conteúdo.");
-      return text.trim();
+      return response.text?.trim() || content;
     } catch (error: any) {
-      console.error("Erro Gemini (Texto):", error);
-      if (error?.message?.includes("API key")) {
-        throw new Error("Chave de API não encontrada ou inválida.");
-      }
+      console.error("Erro na melhoria de texto:", error);
       throw error;
     }
   }
 
   async speak(text: string): Promise<void> {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+      console.warn("API Key ausente para TTS. Usando voz nativa.");
+      this.fallbackSpeak(text);
+      return;
+    }
+
+    if (!text || text.trim().length === 0) return;
+
+    const ai = new GoogleGenAI({ apiKey });
     
     try {
+      // Ajuste do prompt: Adicionando um prefixo diretivo para forçar o modelo a gerar áudio
+      // O erro 400 ocorre se o modelo tentar "conversar" em texto em vez de apenas ler.
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: text }] }],
+        contents: [{ parts: [{ text: `Diga o seguinte texto de forma clara e natural: ${text}` }] }],
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
@@ -85,7 +93,8 @@ export class GeminiService {
         },
       });
 
-      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      const audioPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+      const base64Audio = audioPart?.inlineData?.data;
       
       if (base64Audio) {
         const ctx = this.getAudioContext();
@@ -100,18 +109,21 @@ export class GeminiService {
         source.buffer = audioBuffer;
         source.connect(ctx.destination);
         source.start();
+      } else {
+        // Se a IA retornar texto em vez de áudio (mesmo com Modality.AUDIO), usamos o fallback
+        throw new Error("Modelo não retornou dados de áudio.");
       }
     } catch (error: any) {
-      console.warn("TTS Gemini falhou, usando voz nativa do navegador:", error);
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'pt-BR';
-      window.speechSynthesis.speak(utterance);
+      console.error("Erro no TTS Gemini (400 ou Recusa):", error);
+      this.fallbackSpeak(text);
     }
+  }
+
+  private fallbackSpeak(text: string) {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'pt-BR';
+    window.speechSynthesis.speak(utterance);
   }
 }
 
 export const geminiService = new GeminiService();
-
-// Fix: Adicionando exportação direta de funções para facilitar o uso nos componentes
-export const enhanceNote = (content: string) => geminiService.enhanceNote(content);
-export const speak = (text: string) => geminiService.speak(text);

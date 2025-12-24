@@ -6,12 +6,8 @@ import { NoteCard } from './components/NoteCard.tsx';
 import { NoteForm } from './components/NoteForm.tsx';
 import { Button } from './components/Button.tsx';
 
-declare global {
-  // Fix: Utilizando o tipo global AIStudio conforme exigido pelo compilador
-  interface Window {
-    aistudio: AIStudio;
-  }
-}
+// O objeto global aistudio é injetado pelo ambiente. 
+// Usaremos uma asserção de tipo local para evitar conflitos de declaração global que causam erros de compilador.
 
 const App: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>([]);
@@ -19,28 +15,25 @@ const App: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
-  const [hasApiKey, setHasApiKey] = useState(true);
+  const [needsKey, setNeedsKey] = useState(false);
 
-  const checkKey = useCallback(async () => {
-    if (!process.env.API_KEY) {
-      if (window.aistudio) {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        setHasApiKey(hasKey);
-      } else {
-        setHasApiKey(false);
-      }
-    } else {
-      setHasApiKey(true);
+  // Helper para acessar o objeto aistudio injetado com segurança
+  const getAiStudio = () => (window as any).aistudio;
+
+  const checkApiKeyStatus = useCallback(async () => {
+    const aiStudio = getAiStudio();
+    if (aiStudio && typeof aiStudio.hasSelectedApiKey === 'function') {
+      const hasKey = await aiStudio.hasSelectedApiKey();
+      setNeedsKey(!hasKey);
     }
   }, []);
 
-  const handleOpenSelector = async () => {
-    if (window.aistudio) {
-      await window.aistudio.openSelectKey();
-      // Assume que a chave foi selecionada conforme diretrizes para evitar race conditions
-      setHasApiKey(true);
-    } else {
-      alert("Seletor de chaves não disponível.");
+  const handleOpenKeySelector = async () => {
+    const aiStudio = getAiStudio();
+    if (aiStudio && typeof aiStudio.openSelectKey === 'function') {
+      await aiStudio.openSelectKey();
+      // Assume sucesso para evitar race condition conforme as diretrizes da API
+      setNeedsKey(false);
     }
   };
 
@@ -51,9 +44,9 @@ const App: React.FC = () => {
   }, [searchQuery]);
 
   useEffect(() => {
-    checkKey();
+    checkApiKeyStatus();
     loadNotes();
-  }, [loadNotes, checkKey]);
+  }, [loadNotes, checkApiKeyStatus]);
 
   const handleSaveNote = (data: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>) => {
     if (editingNote) {
@@ -72,101 +65,134 @@ const App: React.FC = () => {
   };
 
   const handleDeleteNote = (id: string) => {
-    if (confirm('Deseja excluir esta nota permanentemente?')) {
+    if (confirm('Deseja realmente excluir esta nota?')) {
       storageService.deleteNote(id);
       loadNotes();
     }
   };
 
+  const openEditForm = (note: Note) => {
+    setEditingNote(note);
+    setIsFormOpen(true);
+  };
+
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
-      {!hasApiKey && (
-        <div className="bg-gradient-to-r from-amber-600 to-orange-600 text-white px-6 py-3 flex items-center justify-between shadow-lg z-50">
-          <div className="flex items-center gap-3">
-            <i className="fas fa-robot animate-bounce"></i>
-            <span className="text-xs font-black uppercase tracking-widest">
-              Configuração Necessária para IA funcionar
-            </span>
+    <div className="min-h-screen flex flex-col">
+      {needsKey && (
+        <div className="bg-amber-500 text-white px-6 py-2 flex items-center justify-between text-xs font-bold animate-pulse">
+          <div className="flex items-center gap-2">
+            <i className="fas fa-key"></i>
+            <span>A IA precisa de uma chave configurada para funcionar fora do ambiente de teste.</span>
           </div>
           <button 
-            onClick={handleOpenSelector}
-            className="bg-white text-orange-600 px-4 py-1.5 rounded-full text-[10px] font-black hover:scale-105 transition-transform"
+            onClick={handleOpenKeySelector}
+            className="bg-white text-amber-600 px-3 py-1 rounded hover:bg-amber-50 transition-colors"
           >
-            VINCULAR CHAVE API
+            CONFIGURAR AGORA
           </button>
         </div>
       )}
 
-      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-xl shadow-sm border-b px-6 py-5">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-5 group cursor-pointer" onClick={() => loadNotes()}>
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-100 transition-transform group-hover:scale-110">
-              <i className="fas fa-feather-pointed text-white text-lg"></i>
+      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md shadow-sm border-b px-6 py-4">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4 group cursor-pointer" onClick={() => loadNotes()}>
+            <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-100 transition-all duration-500 group-hover:bg-indigo-700">
+              <i className="fas fa-robot text-white text-2xl transition-transform duration-700 ease-in-out group-hover:rotate-[360deg]"></i>
             </div>
             <div className="text-left">
-              <h1 className="text-2xl font-black text-slate-900 tracking-tighter leading-none">Caderno de Ideias</h1>
-              <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-[0.3em] mt-1.5">Inteligência Gemini</p>
+              <h1 className="text-2xl font-black text-gray-900 tracking-tighter leading-none">Caderno de Anotações</h1>
+              <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-[0.3em] mt-1.5">Inteligência Artificial</p>
             </div>
           </div>
 
-          <div className="flex-1 max-w-xl w-full relative">
-            <i className="fas fa-search absolute left-5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+          <div className="flex-1 max-w-md w-full relative">
+            <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
             <input 
-              type="text" 
-              placeholder="Pesquisar notas..." 
+              type="text"
+              placeholder="Pesquisar notas..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-slate-100 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
+              className="w-full pl-11 pr-4 py-2 bg-gray-100 border-none rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all outline-none text-sm"
             />
           </div>
 
-          <Button onClick={() => { setEditingNote(undefined); setIsFormOpen(true); }} className="shadow-lg shadow-indigo-100">
-            <i className="fas fa-plus mr-2"></i> Nova Nota
+          <Button 
+            variant="primary" 
+            className="rounded-xl shadow-indigo-100 shadow-lg px-6 font-bold"
+            onClick={() => {
+              setEditingNote(undefined);
+              setIsFormOpen(true);
+            }}
+          >
+            <i className="fas fa-plus mr-2 text-xs"></i> Nova Nota
           </Button>
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-8">
+      <main className="flex-1 p-6 md:p-10 max-w-7xl mx-auto w-full">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-            <i className="fas fa-circle-notch fa-spin text-4xl mb-4"></i>
-            <p>Carregando suas ideias...</p>
+          <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+            <i className="fas fa-circle-notch fa-spin text-4xl mb-4 text-indigo-200"></i>
+            <p className="font-medium">Carregando...</p>
           </div>
-        ) : notes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-200 rounded-3xl">
-            <i className="fas fa-note-sticky text-6xl mb-6 opacity-20"></i>
-            <p className="text-xl font-medium">Nenhuma nota encontrada</p>
-            <p className="text-sm">Comece criando sua primeira ideia!</p>
-          </div>
-        ) : (
+        ) : notes.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
             {notes.map(note => (
               <NoteCard 
                 key={note.id} 
                 note={note} 
-                onEdit={(n) => { setEditingNote(n); setIsFormOpen(true); }}
+                onEdit={openEditForm} 
                 onDelete={handleDeleteNote}
                 onUpdate={handleUpdateNoteField}
               />
             ))}
           </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-96 text-center space-y-4">
+            <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center text-gray-200 shadow-sm border border-slate-100">
+              <i className="fas fa-lightbulb text-4xl"></i>
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-700">Seu caderno está vazio</h3>
+              <p className="text-gray-400 max-w-xs mx-auto text-sm">
+                Capture um pensamento rápido ou deixe a IA ajudar você a organizar suas ideias.
+              </p>
+            </div>
+            {!searchQuery && (
+              <Button variant="secondary" className="rounded-xl" onClick={() => setIsFormOpen(true)}>
+                Escrever agora
+              </Button>
+            )}
+          </div>
         )}
       </main>
+
+      <footer className="bg-white/40 border-t py-8 px-6 text-gray-400 text-xs">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
+          <div>
+            <p>© 2025 Caderno de Anotações. Armazenamento local 100% privado.</p>
+            <p className="mt-1">Desenvolvido com <i className="fas fa-heart text-red-400 mx-1"></i> por <span className="font-black text-indigo-600 tracking-tight">MSCHelp</span></p>
+          </div>
+          <div className="flex items-center gap-4 justify-center">
+             <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="hover:text-indigo-500 transition-colors">Documentação de Faturamento</a>
+             <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+             <span className="font-bold">Powered by Gemini 3</span>
+          </div>
+        </div>
+      </footer>
 
       {isFormOpen && (
         <NoteForm 
           note={editingNote}
           onSave={handleSaveNote}
-          onCancel={() => { setIsFormOpen(false); setEditingNote(undefined); }}
+          onCancel={() => {
+            setIsFormOpen(false);
+            setEditingNote(undefined);
+          }}
         />
       )}
-      
-      <footer className="bg-white border-t py-8 px-6 text-center text-slate-400 text-sm">
-        <p>&copy; {new Date().getFullYear()} Caderno de Ideias. Desenvolvido com Gemini AI.</p>
-      </footer>
     </div>
   );
 };
 
-// Fix: Adicionando exportação padrão para resolver erro no index.tsx
 export default App;
