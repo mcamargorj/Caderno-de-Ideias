@@ -45,6 +45,23 @@ export class GeminiService {
     return this.audioContext;
   }
 
+  async getDailyInsight(): Promise<string> {
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) return "Anote suas ideias para transformá-las em realidade.";
+
+    const ai = new GoogleGenAI({ apiKey });
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: "Gere uma frase curta, inspiradora e produtiva sobre criatividade e organização em Português do Brasil. Seja breve (máximo 15 palavras).",
+        config: { temperature: 0.9 },
+      });
+      return response.text?.trim() || "Sua criatividade é sua melhor ferramenta.";
+    } catch {
+      return "Foco e organização levam ao sucesso.";
+    }
+  }
+
   async enhanceNote(content: string): Promise<string> {
     const apiKey = process.env.API_KEY;
     if (!apiKey) throw new Error("API_KEY_MISSING");
@@ -68,21 +85,16 @@ export class GeminiService {
   async speak(text: string): Promise<void> {
     const apiKey = process.env.API_KEY;
     if (!apiKey) {
-      console.warn("API Key ausente para TTS. Usando voz nativa.");
       this.fallbackSpeak(text);
       return;
     }
 
-    if (!text || text.trim().length === 0) return;
-
     const ai = new GoogleGenAI({ apiKey });
     
     try {
-      // Ajuste do prompt: Adicionando um prefixo diretivo para forçar o modelo a gerar áudio
-      // O erro 400 ocorre se o modelo tentar "conversar" em texto em vez de apenas ler.
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: `Diga o seguinte texto de forma clara e natural: ${text}` }] }],
+        contents: [{ parts: [{ text: `Diga o seguinte texto: ${text}` }] }],
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
@@ -98,23 +110,15 @@ export class GeminiService {
       
       if (base64Audio) {
         const ctx = this.getAudioContext();
-        const audioBuffer = await decodeAudioData(
-          decode(base64Audio),
-          ctx,
-          24000,
-          1
-        );
-
+        const audioBuffer = await decodeAudioData(decode(base64Audio), ctx, 24000, 1);
         const source = ctx.createBufferSource();
         source.buffer = audioBuffer;
         source.connect(ctx.destination);
         source.start();
       } else {
-        // Se a IA retornar texto em vez de áudio (mesmo com Modality.AUDIO), usamos o fallback
-        throw new Error("Modelo não retornou dados de áudio.");
+        throw new Error();
       }
-    } catch (error: any) {
-      console.error("Erro no TTS Gemini (400 ou Recusa):", error);
+    } catch {
       this.fallbackSpeak(text);
     }
   }

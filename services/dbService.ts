@@ -12,7 +12,11 @@ export const storageService = {
     if (!data) {
       return { notes: [], version: 1 };
     }
-    return JSON.parse(data);
+    try {
+      return JSON.parse(data);
+    } catch (e) {
+      return { notes: [], version: 1 };
+    }
   },
 
   saveStorage: (state: StorageState): void => {
@@ -31,7 +35,7 @@ export const storageService = {
     const storage = storageService.getStorage();
     const newNote: Note = {
       ...note,
-      id: crypto.randomUUID(),
+      id: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).substring(2)),
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -57,8 +61,8 @@ export const storageService = {
 
   deleteNote: (id: string): void => {
     const storage = storageService.getStorage();
-    storage.notes = storage.notes.filter(n => n.id !== id);
-    storageService.saveStorage(storage);
+    const filteredNotes = storage.notes.filter(n => n.id !== id);
+    storageService.saveStorage({ ...storage, notes: filteredNotes });
   },
 
   searchNotes: (query: string): Note[] => {

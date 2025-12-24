@@ -14,6 +14,7 @@ interface NoteCardProps {
 export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUpdate }) => {
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleEnhance = async (e: React.MouseEvent) => {
@@ -48,8 +49,46 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
     } catch (err) {
       console.error("Erro ao falar:", err);
     } finally {
-      setTimeout(() => setIsSpeaking(false), 2000); // Evita cliques múltiplos imediatos
+      setTimeout(() => setIsSpeaking(false), 2000);
     }
+  };
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(note.content);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (err) {
+      console.error("Erro ao copiar:", err);
+    }
+  };
+
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const shareData = {
+      title: note.title || 'Minha Nota',
+      text: note.content,
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          console.error("Erro ao compartilhar:", err);
+        }
+      }
+    } else {
+      handleCopy(e);
+      alert("O compartilhamento nativo não é suportado neste navegador. O texto foi copiado para sua área de transferência.");
+    }
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    onDelete(note.id);
   };
 
   const formattedDate = new Date(note.updatedAt).toLocaleDateString('pt-BR', {
@@ -61,7 +100,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
 
   return (
     <div 
-      className={`sticky-note w-full aspect-square ${note.color} p-6 shadow-lg relative flex flex-col cursor-pointer border border-black/5`}
+      className={`sticky-note w-full aspect-square ${note.color} p-6 shadow-lg relative flex flex-col cursor-pointer border border-black/5 rounded-sm`}
       onClick={() => onEdit(note)}
     >
       {/* Decorative Tape */}
@@ -71,20 +110,37 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
         <h3 className="text-lg font-black text-gray-800 line-clamp-1 flex-1 leading-tight tracking-tight pr-2">
           {note.title || 'Insight'}
         </h3>
-        <div className="flex gap-2">
+        <div className="flex gap-1.5">
           <button 
             onClick={handleSpeak}
-            className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${isSpeaking ? 'bg-indigo-500 text-white' : 'hover:bg-black/10 text-gray-600'}`}
+            className={`w-8 h-8 flex items-center justify-center rounded-full transition-all active:scale-90 ${isSpeaking ? 'bg-indigo-500 text-white shadow-sm' : 'hover:bg-black/10 text-gray-600'}`}
             title="Ouvir Nota"
           >
-            <i className={`fas ${isSpeaking ? 'fa-volume-up animate-pulse' : 'fa-volume-low'} text-xs`}></i>
+            <i className={`fas ${isSpeaking ? 'fa-volume-up animate-pulse' : 'fa-volume-low'} text-sm`}></i>
           </button>
+          
           <button 
-            onClick={(e) => { e.stopPropagation(); onDelete(note.id); }}
-            className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-500 hover:text-white text-gray-400 transition-all"
+            onClick={handleCopy}
+            className={`w-8 h-8 flex items-center justify-center rounded-full transition-all active:scale-90 ${isCopied ? 'bg-green-500 text-white shadow-sm' : 'hover:bg-black/10 text-gray-600'}`}
+            title="Copiar texto"
+          >
+            <i className={`fas ${isCopied ? 'fa-check' : 'fa-copy'} text-sm`}></i>
+          </button>
+
+          <button 
+            onClick={handleShare}
+            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/10 text-gray-600 transition-all active:scale-90"
+            title="Compartilhar"
+          >
+            <i className="fas fa-share-nodes text-sm"></i>
+          </button>
+
+          <button 
+            onClick={handleDelete}
+            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-500 hover:text-white text-gray-400 transition-all active:scale-90"
             title="Excluir"
           >
-            <i className="fas fa-times text-xs"></i>
+            <i className="fas fa-trash-can text-sm"></i>
           </button>
         </div>
       </div>
