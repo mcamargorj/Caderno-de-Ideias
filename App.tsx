@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Note, NoteColor } from './types.ts';
 import { storageService } from './services/dbService.ts';
 import { NoteCard } from './components/NoteCard.tsx';
@@ -17,6 +17,7 @@ const App: React.FC = () => {
   const [filterColor, setFilterColor] = useState<NoteColor | null>(null);
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [isLogoSpinning, setIsLogoSpinning] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const triggerLogoSpin = () => {
     setIsLogoSpinning(true);
@@ -63,10 +64,32 @@ const App: React.FC = () => {
     }
   };
 
+  const handleExport = () => {
+    storageService.exportBackup();
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const success = await storageService.importBackup(file);
+      if (success) {
+        alert("Notas restauradas com sucesso!");
+        loadNotes();
+      } else {
+        alert("Falha ao importar arquivo. Verifique se o formato está correto.");
+      }
+    }
+    e.target.value = ''; // Reset input
+  };
+
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-transparent pb-24 md:pb-0">
       {/* Sidebar - Desktop Only */}
-      <aside className="hidden md:flex w-64 lg:w-72 bg-white/60 backdrop-blur-xl border-r p-6 flex-col gap-8 z-20">
+      <aside className="hidden md:flex w-64 lg:w-72 bg-white/60 backdrop-blur-xl border-r p-6 flex-col gap-6 z-20">
         <div className="flex items-center gap-3">
           <div 
             className="w-10 h-10 flex items-center justify-center cursor-pointer transition-transform active:scale-95"
@@ -84,11 +107,11 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <nav className="flex flex-col gap-2">
+        <nav className="flex flex-col gap-1.5">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-2 px-3">Navegação</p>
           <button 
             onClick={() => setFilterColor(null)}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-semibold text-sm ${!filterColor ? 'bg-indigo-50 text-indigo-600 shadow-sm shadow-indigo-100' : 'text-gray-500 hover:bg-gray-100'}`}
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all font-semibold text-sm ${!filterColor ? 'bg-indigo-50 text-indigo-600 shadow-sm shadow-indigo-100' : 'text-gray-500 hover:bg-gray-100'}`}
           >
             <i className="fas fa-layer-group"></i> Todas as Notas
             <span className="ml-auto text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">{notes.length}</span>
@@ -96,15 +119,40 @@ const App: React.FC = () => {
         </nav>
 
         <div>
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4 px-3">Filtrar por Cor</p>
-          <div className="grid grid-cols-4 gap-3 px-3">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-3 px-3">Filtrar por Cor</p>
+          <div className="grid grid-cols-4 gap-2 px-3">
             {Object.values(NoteColor).map(color => (
               <button
                 key={color}
                 onClick={() => setFilterColor(filterColor === color ? null : color)}
-                className={`w-8 h-8 rounded-full shadow-sm transition-transform active:scale-90 border-2 ${color} ${filterColor === color ? 'border-indigo-600 scale-110 shadow-indigo-100' : 'border-transparent hover:scale-110'}`}
+                className={`w-7 h-7 rounded-full shadow-sm transition-transform active:scale-90 border-2 ${color} ${filterColor === color ? 'border-indigo-600 scale-110 shadow-indigo-100' : 'border-transparent hover:scale-110'}`}
               />
             ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-3 px-3">Segurança dos Dados</p>
+          <div className="flex flex-col gap-2 px-1">
+            <button 
+              onClick={handleExport}
+              className="flex items-center gap-2 px-3 py-2 text-[11px] font-bold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <i className="fas fa-download text-indigo-500"></i> EXPORTAR NOTAS
+            </button>
+            <button 
+              onClick={handleImportClick}
+              className="flex items-center gap-2 px-3 py-2 text-[11px] font-bold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <i className="fas fa-upload text-indigo-500"></i> RESTAURAR NOTAS
+            </button>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileChange} 
+              accept=".json" 
+              className="hidden" 
+            />
           </div>
         </div>
 
@@ -121,7 +169,7 @@ const App: React.FC = () => {
               <span className="text-[9px] font-bold uppercase tracking-wider">Armazenamento Local</span>
             </div>
             <p className="text-[9px] text-gray-400 leading-tight">
-              Suas notas são salvas apenas neste navegador. Limpar os dados do site apagará suas anotações.
+              Dados salvos apenas neste navegador. Use os botões acima para exportar uma cópia de suas notas.
             </p>
           </div>
         </div>
@@ -169,8 +217,9 @@ const App: React.FC = () => {
           </div>
         </header>
 
+        {/* IA Insight Mobile - Restaurado conforme solicitado */}
         <div className="md:hidden px-6 mt-2">
-          <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
+          <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 animate-in fade-in slide-in-from-top-2 duration-500">
             <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">Dica de hoje</p>
             <p className="text-xs text-indigo-900 leading-tight italic">"{dailyInsight}"</p>
           </div>
@@ -202,11 +251,16 @@ const App: React.FC = () => {
                 </div>
                 <h3 className="text-xl md:text-2xl font-black text-gray-800 mb-2 tracking-tight">O papel está em branco</h3>
                 <p className="text-gray-500 text-xs md:text-sm font-medium leading-relaxed mb-6">
-                  Suas ideias são privadas e armazenadas localmente no seu dispositivo.
+                  Suas ideias são privadas e armazenadas localmente. Não esqueça de exportar suas notas ocasionalmente!
                 </p>
-                <Button variant="primary" className="rounded-2xl px-8" onClick={() => setIsFormOpen(true)}>
-                  Escrever Agora
-                </Button>
+                <div className="flex flex-col gap-3">
+                  <Button variant="primary" className="rounded-2xl px-8" onClick={() => setIsFormOpen(true)}>
+                    Escrever Agora
+                  </Button>
+                  <button onClick={handleImportClick} className="text-indigo-600 font-bold text-xs uppercase tracking-widest hover:underline mt-2">
+                    Ou restaurar notas existentes
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -243,11 +297,11 @@ const App: React.FC = () => {
         </div>
 
         <button 
-          onClick={() => setIsSearchActive(!isSearchActive)}
-          className={`flex flex-col items-center gap-1 ${isSearchActive ? 'text-indigo-600' : 'text-gray-400'}`}
+          onClick={handleExport}
+          className="flex flex-col items-center gap-1 text-gray-400"
         >
-          <i className="fas fa-search text-lg"></i>
-          <span className="text-[10px] font-bold">Busca</span>
+          <i className="fas fa-download text-lg"></i>
+          <span className="text-[10px] font-bold">Exportar</span>
         </button>
       </nav>
 

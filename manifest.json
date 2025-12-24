@@ -1,0 +1,22 @@
+
+{
+  "name": "Caderno de Insights",
+  "short_name": "Insights",
+  "description": "Seu espaço inteligente para capturar pensamentos e insights.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "https://drive.google.com/uc?id=1SW94zLUqWlz3GwxLtcS8RNaqhCSigu34",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://drive.google.com/uc?id=1SW94zLUqWlz3GwxLtcS8RNaqhCSigu34",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

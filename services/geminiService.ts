@@ -46,10 +46,8 @@ export class GeminiService {
   }
 
   async getDailyInsight(): Promise<string> {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) return "Anote suas ideias para transformá-las em realidade.";
-
-    const ai = new GoogleGenAI({ apiKey });
+    // Use process.env.API_KEY directly for initialization as per guidelines
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     try {
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -63,10 +61,8 @@ export class GeminiService {
   }
 
   async enhanceNote(content: string): Promise<string> {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) throw new Error("API_KEY_MISSING");
-
-    const ai = new GoogleGenAI({ apiKey });
+    // Use process.env.API_KEY directly for initialization as per guidelines
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     try {
       const response = await ai.models.generateContent({
@@ -83,13 +79,8 @@ export class GeminiService {
   }
 
   async speak(text: string): Promise<void> {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) {
-      this.fallbackSpeak(text);
-      return;
-    }
-
-    const ai = new GoogleGenAI({ apiKey });
+    // Use process.env.API_KEY directly for initialization as per guidelines
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     try {
       const response = await ai.models.generateContent({

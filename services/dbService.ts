@@ -73,5 +73,34 @@ export const storageService = {
       n.title.toLowerCase().includes(lowerQuery) || 
       n.content.toLowerCase().includes(lowerQuery)
     );
+  },
+
+  // Novas funções de Backup
+  exportBackup: () => {
+    const storage = storageService.getStorage();
+    const blob = new Blob([JSON.stringify(storage, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `backup-insights-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+
+  importBackup: async (file: File): Promise<boolean> => {
+    try {
+      const text = await file.text();
+      const imported = JSON.parse(text) as StorageState;
+      
+      // Validação básica
+      if (Array.isArray(imported.notes)) {
+        storageService.saveStorage(imported);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error("Erro ao importar backup:", e);
+      return false;
+    }
   }
 };
