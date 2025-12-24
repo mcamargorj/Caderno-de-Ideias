@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Note } from '../types.ts';
 import { Button } from './Button.tsx';
-import { enhanceNote } from '../services/geminiService.ts';
+import { geminiService } from '../services/geminiService.ts';
 
 interface NoteCardProps {
   note: Note;
@@ -14,6 +14,7 @@ interface NoteCardProps {
 
 export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUpdate, onKeyError }) => {
   const [isEnhancing, setIsEnhancing] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   const handleEnhance = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -21,21 +22,34 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
 
     setIsEnhancing(true);
     try {
-      const improved = await enhanceNote(note.content);
+      const improved = await geminiService.enhanceNote(note.content);
       if (improved && improved !== note.content) {
         onUpdate(note.id, { content: improved });
       }
     } catch (err: any) {
       console.error("Falha ao melhorar nota:", err);
-      
-      // @google/genai guidelines: If the key is invalid or not found, reset selection state.
       if (err.message?.includes("Chave de API inválida") || err.message?.includes("Requested entity was not found")) {
         onKeyError?.();
       } else {
-        alert(err.message || "Ocorreu um erro ao tentar usar a IA. Verifique sua conexão e chave de API.");
+        alert(err.message || "Ocorreu um erro ao tentar usar a IA.");
       }
     } finally {
       setIsEnhancing(false);
+    }
+  };
+
+  const handleSpeak = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!note.content.trim() || isSpeaking) return;
+
+    setIsSpeaking(true);
+    try {
+      await geminiService.speak(note.content);
+    } catch (err) {
+      console.error("Falha ao reproduzir áudio:", err);
+    } finally {
+      // Pequeno delay para resetar o ícone
+      setTimeout(() => setIsSpeaking(false), 1000);
     }
   };
 
@@ -60,6 +74,14 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
           {note.title || 'Sem título'}
         </h3>
         <div className="flex gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity">
+          <button 
+            onClick={(e) => { e.stopPropagation(); handleSpeak(e); }}
+            className={`p-1 transition-colors ${isSpeaking ? 'text-indigo-600' : 'text-gray-600 hover:text-indigo-600'}`}
+            title="Ouvir Nota"
+            disabled={isSpeaking}
+          >
+            <i className={`fas ${isSpeaking ? 'fa-volume-up animate-pulse' : 'fa-volume-low'} text-sm`}></i>
+          </button>
           <button 
             onClick={(e) => { e.stopPropagation(); onDelete(note.id); }}
             className="text-red-600/70 hover:text-red-700 p-1"

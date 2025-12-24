@@ -6,16 +6,16 @@ import { NoteCard } from './components/NoteCard.tsx';
 import { NoteForm } from './components/NoteForm.tsx';
 import { Button } from './components/Button.tsx';
 
-// @google/genai guidelines: Declare the AIStudio interface to match the environment's expectation.
-interface AIStudio {
+// @google/genai guidelines: Use a unique interface name (AppAIStudio) to avoid conflicts with potential global AIStudio definitions.
+interface AppAIStudio {
   hasSelectedApiKey(): Promise<boolean>;
   openSelectKey(): Promise<void>;
 }
 
 declare global {
   interface Window {
-    // @google/genai guidelines: Use the AIStudio type instead of any to fix property mismatch and modifier errors.
-    aistudio: AIStudio;
+    // @google/genai guidelines: Adding readonly modifier to match the platform's global aistudio definition and fix modifier mismatch errors.
+    readonly aistudio: AppAIStudio;
   }
 }
 
