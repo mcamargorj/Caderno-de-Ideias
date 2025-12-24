@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Note } from '../types.ts';
 import { Button } from './Button.tsx';
-import { geminiService } from '../services/geminiService.ts';
+import { enhanceNote } from '../services/geminiService.ts';
 
 interface NoteCardProps {
   note: Note;
@@ -13,115 +13,61 @@ interface NoteCardProps {
 
 export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUpdate }) => {
   const [isEnhancing, setIsEnhancing] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (error) {
-      const timer = setTimeout(() => setError(null), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [error]);
 
   const handleEnhance = async (e: React.MouseEvent) => {
-    e.preventDefault();
     e.stopPropagation();
-    
-    if (!note.content.trim() || isEnhancing) return;
-
     setIsEnhancing(true);
-    setError(null);
-
-    // Forçamos a liberação da thread para resolver o problema de INP
-    // e garantir que o estado 'isEnhancing' seja refletido visualmente antes da chamada de rede
-    requestAnimationFrame(async () => {
-      // Pequeno delay adicional para garantir que o repinte aconteça
-      await new Promise(r => setTimeout(r, 100));
-      
-      try {
-        const improved = await geminiService.enhanceNote(note.content);
-        if (improved && improved !== note.content) {
-          onUpdate(note.id, { content: improved });
-        }
-      } catch (err: any) {
-        console.error("UI Enhance Error:", err);
-        setError(err.message || "IA indisponível");
-      } finally {
-        setIsEnhancing(false);
-      }
-    });
-  };
-
-  const handleSpeak = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (!note.content.trim() || isSpeaking) return;
-
-    setIsSpeaking(true);
-    try {
-      await geminiService.speak(note.content);
-    } catch (err: any) {
-      console.error("Erro ao reproduzir áudio:", err);
-    } finally {
-      setTimeout(() => setIsSpeaking(false), 2000);
-    }
+    const improved = await enhanceNote(note.content);
+    onUpdate(note.id, { content: improved });
+    setIsEnhancing(false);
   };
 
   const formattedDate = new Date(note.updatedAt).toLocaleDateString('pt-BR', {
     day: '2-digit',
     month: 'short',
+    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit'
   });
 
   return (
     <div 
-      className={`sticky-note w-full aspect-square ${note.color} p-6 shadow-lg relative flex flex-col cursor-pointer group/card border border-black/5 hover:shadow-2xl transition-all duration-300`}
-      onClick={() => !isEnhancing && onEdit(note)}
+      className={`sticky-note w-full aspect-square ${note.color} p-6 shadow-lg relative flex flex-col cursor-default`}
+      onClick={() => onEdit(note)}
     >
-      <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-16 h-8 bg-white/30 rotate-1 pointer-events-none backdrop-blur-sm"></div>
+      {/* Decorative Tape */}
+      <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-20 h-8 bg-white/40 rotate-1 pointer-events-none"></div>
       
-      <div className="flex justify-between items-start mb-3">
-        <h3 className="text-lg font-black text-slate-800 line-clamp-1 flex-1 tracking-tight pr-2">
-          {note.title || 'Novo Insight'}
+      <div className="flex justify-between items-start mb-2 group">
+        <h3 className="text-lg font-bold text-gray-800 line-clamp-1 flex-1 leading-tight">
+          {note.title || 'Sem título'}
         </h3>
-        <div className="flex gap-2">
-          <button 
-            onClick={handleSpeak}
-            className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${isSpeaking ? 'bg-indigo-500 text-white' : 'hover:bg-black/10 text-slate-600'}`}
-            title="Ouvir"
-          >
-            <i className={`fas ${isSpeaking ? 'fa-volume-up animate-pulse' : 'fa-volume-low'} text-[10px]`}></i>
-          </button>
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button 
             onClick={(e) => { e.stopPropagation(); onDelete(note.id); }}
-            className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-500 hover:text-white text-slate-400 transition-all"
+            className="text-red-500 hover:text-red-700 p-1"
             title="Excluir"
           >
-            <i className="fas fa-times text-xs"></i>
+            <i className="fas fa-trash-alt text-sm"></i>
           </button>
         </div>
       </div>
 
-      <p className="text-slate-700 overflow-hidden text-ellipsis line-clamp-5 text-sm flex-1 font-medium whitespace-pre-wrap leading-relaxed opacity-90">
+      <p className="text-gray-700 overflow-hidden text-ellipsis line-clamp-6 text-sm flex-1 note-font whitespace-pre-wrap">
         {note.content}
       </p>
 
-      <div className="mt-4 pt-3 border-t border-black/10 flex flex-col gap-2">
-        <div className="flex justify-between items-center">
-          <span className={`text-[9px] font-bold uppercase tracking-wider transition-colors duration-300 ${error ? 'text-red-600' : 'text-slate-500'}`}>
-            {error || formattedDate}
-          </span>
-          
+      <div className="mt-4 flex flex-col gap-2">
+        <div className="flex justify-between items-center text-[10px] text-gray-500 font-medium border-t border-black/5 pt-2">
+          <span>{formattedDate}</span>
           <Button 
             variant="ghost" 
             size="sm" 
-            className={`h-7 px-3 text-[10px] font-black rounded-lg transition-all transform active:scale-95 ${isEnhancing ? 'bg-indigo-600 text-white' : 'bg-black/5 hover:bg-black/10 text-slate-700'}`}
+            className="h-6 px-2 text-[10px] bg-black/5 hover:bg-black/10"
             onClick={handleEnhance}
             isLoading={isEnhancing}
           >
-            {isEnhancing ? 'PENSANDO...' : <><i className="fas fa-wand-magic-sparkles mr-1.5"></i> IA</>}
+            <i className="fas fa-magic mr-1"></i> IA
           </Button>
         </div>
       </div>
