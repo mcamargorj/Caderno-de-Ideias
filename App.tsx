@@ -20,7 +20,7 @@ const App: React.FC = () => {
 
   const triggerLogoSpin = () => {
     setIsLogoSpinning(true);
-    // Remove a classe após a animação terminar para poder disparar novamente
+    // Remove a classe após a animação terminar (1s no CSS) para poder disparar novamente
     setTimeout(() => setIsLogoSpinning(false), 1000);
   };
 
@@ -70,7 +70,7 @@ const App: React.FC = () => {
       <aside className="hidden md:flex w-64 lg:w-72 bg-white/60 backdrop-blur-xl border-r p-6 flex-col gap-8 z-20">
         <div className="flex items-center gap-3">
           <div 
-            className="w-10 h-10 flex items-center justify-center cursor-pointer"
+            className="w-10 h-10 flex items-center justify-center cursor-pointer transition-transform active:scale-95"
             onClick={triggerLogoSpin}
           >
             <img 
@@ -79,9 +79,9 @@ const App: React.FC = () => {
               className={`w-10 h-10 object-contain ${isLogoSpinning ? 'animate-spin-once' : ''}`}
             />
           </div>
-          <div onClick={triggerLogoSpin} className="cursor-pointer">
-            <h1 className="text-lg font-black text-gray-900 leading-none">MSCHelp</h1>
-            <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-widest mt-0.5">Workspace</p>
+          <div onClick={triggerLogoSpin} className="cursor-pointer select-none">
+            <h1 className="text-sm font-black text-gray-900 leading-tight uppercase tracking-tight">Caderno de</h1>
+            <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-[0.2em]">INSIGHTS</p>
           </div>
         </div>
 
@@ -89,7 +89,7 @@ const App: React.FC = () => {
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-2 px-3">Navegação</p>
           <button 
             onClick={() => setFilterColor(null)}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-semibold text-sm ${!filterColor ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500 hover:bg-gray-100'}`}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-semibold text-sm ${!filterColor ? 'bg-indigo-50 text-indigo-600 shadow-sm shadow-indigo-100' : 'text-gray-500 hover:bg-gray-100'}`}
           >
             <i className="fas fa-layer-group"></i> Todas as Notas
             <span className="ml-auto text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">{notes.length}</span>
@@ -97,7 +97,7 @@ const App: React.FC = () => {
         </nav>
 
         <div>
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4 px-3">Tags por Cor</p>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4 px-3">Filtrar por Cor</p>
           <div className="grid grid-cols-4 gap-3 px-3">
             {Object.values(NoteColor).map(color => (
               <button
@@ -118,8 +118,9 @@ const App: React.FC = () => {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header - Optimized for Mobile */}
-        <header className="px-6 py-4 md:py-6 md:px-10 flex flex-col md:flex-row items-center justify-between gap-4 sticky top-0 z-30 bg-white/40 backdrop-blur-md">
+        {/* Header */}
+        <header className="px-6 py-4 md:py-6 md:px-10 flex flex-col md:flex-row items-center justify-between gap-4 sticky top-0 z-30 bg-white/40 backdrop-blur-md border-b md:border-none">
+          {/* Mobile Header Branding */}
           <div className="flex items-center justify-between w-full md:hidden mb-2">
             <div className="flex items-center gap-2 cursor-pointer" onClick={triggerLogoSpin}>
               <img 
@@ -134,24 +135,23 @@ const App: React.FC = () => {
             </button>
           </div>
 
-          <div className={`flex-1 max-w-xl w-full relative group ${!isSearchActive && 'hidden md:block'}`}>
+          {/* Search Box */}
+          <div className={`flex-1 max-w-2xl w-full relative group ${!isSearchActive && 'hidden md:block'}`}>
             <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors"></i>
             <input 
               type="text"
-              placeholder="Pesquisar notas..."
+              placeholder="Pesquisar nos seus insights..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl shadow-sm focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none text-sm font-medium text-slate-900 placeholder:text-slate-400"
             />
           </div>
 
-          <div className="hidden md:flex items-center gap-3 w-full md:w-auto">
-            <div className="hidden md:flex items-center gap-2 mr-4">
-              <span className="font-black text-gray-800 text-sm tracking-tight">Caderno de Insights</span>
-            </div>
+          {/* Desktop Actions Section */}
+          <div className="hidden md:flex items-center gap-4">
             <Button 
               variant="primary" 
-              className="w-full md:w-auto rounded-2xl shadow-indigo-200 shadow-xl px-8 font-black text-sm h-12"
+              className="rounded-2xl shadow-indigo-200 shadow-xl px-8 font-black text-sm h-12"
               onClick={() => {
                 setEditingNote(undefined);
                 setIsFormOpen(true);
@@ -174,7 +174,7 @@ const App: React.FC = () => {
           {isLoading ? (
             <div className="flex flex-col items-center justify-center h-64 text-gray-400">
               <i className="fas fa-circle-notch fa-spin text-4xl mb-4 text-indigo-400"></i>
-              <p className="font-bold tracking-tighter">CARREGANDO...</p>
+              <p className="font-bold tracking-tighter uppercase">Carregando Notas...</p>
             </div>
           ) : filteredNotes.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6 md:gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -194,9 +194,9 @@ const App: React.FC = () => {
                 <div className="w-16 h-16 md:w-24 md:h-24 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-500 mx-auto mb-6">
                   <i className="fas fa-feather-pointed text-2xl md:text-4xl"></i>
                 </div>
-                <h3 className="text-xl md:text-2xl font-black text-gray-800 mb-2 tracking-tight">Comece aqui</h3>
+                <h3 className="text-xl md:text-2xl font-black text-gray-800 mb-2 tracking-tight">O papel está em branco</h3>
                 <p className="text-gray-500 text-xs md:text-sm font-medium leading-relaxed mb-6">
-                  Suas ideias merecem ser guardadas.
+                  Nenhuma nota encontrada. Que tal capturar seu primeiro pensamento agora?
                 </p>
                 <Button variant="primary" className="rounded-2xl px-8" onClick={() => setIsFormOpen(true)}>
                   Escrever Agora
