@@ -3,9 +3,13 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 
-// Garante que o objeto process.env exista no navegador para evitar erros de referência
-// e permitir que a API_KEY configurada no Vercel seja acessada.
-(window as any).process = (window as any).process || { env: {} };
+// Polyfill robusto para process.env no navegador.
+// Isso garante que a aplicação não quebre e consiga acessar a API_KEY injetada pelo ambiente.
+if (typeof (window as any).process === 'undefined') {
+  (window as any).process = { env: {} };
+} else if (typeof (window as any).process.env === 'undefined') {
+  (window as any).process.env = {};
+}
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

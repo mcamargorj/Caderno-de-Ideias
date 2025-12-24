@@ -24,8 +24,9 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
       if (improved && improved !== note.content) {
         onUpdate(note.id, { content: improved });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Falha ao melhorar nota:", err);
+      alert(err.message || "Ocorreu um erro ao tentar usar a IA. Verifique sua conexão e chave de API.");
     } finally {
       setIsEnhancing(false);
     }
@@ -41,7 +42,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
 
   return (
     <div 
-      className={`sticky-note w-full aspect-square ${note.color} p-6 shadow-lg relative flex flex-col cursor-default group/card`}
+      className={`sticky-note w-full aspect-square ${note.color} p-6 shadow-lg relative flex flex-col cursor-default group/card border border-black/5`}
       onClick={() => onEdit(note)}
     >
       {/* Fita adesiva decorativa */}

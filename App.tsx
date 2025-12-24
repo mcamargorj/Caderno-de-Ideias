@@ -6,12 +6,55 @@ import { NoteCard } from './components/NoteCard.tsx';
 import { NoteForm } from './components/NoteForm.tsx';
 import { Button } from './components/Button.tsx';
 
+// Tipagem para as funções globais do AI Studio/Vercel AI
+declare global {
+  interface Window {
+    aistudio: {
+      hasSelectedApiKey: () => Promise<boolean>;
+      openSelectKey: () => Promise<void>;
+    };
+  }
+}
+
 const App: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
+  const [needsKeyConfig, setNeedsKeyConfig] = useState(false);
+
+  // Verifica se a chave está disponível ou se precisa ser selecionada
+  useEffect(() => {
+    const checkKey = async () => {
+      // Se já houver uma chave no process.env, seguimos em frente
+      if (process.env.API_KEY) {
+        setNeedsKeyConfig(false);
+        return;
+      }
+
+      // Se houver a interface de seleção do AI Studio, verificamos se o usuário já selecionou
+      if (window.aistudio) {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+          setNeedsKeyConfig(true);
+        }
+      } else {
+        // Se não houver window.aistudio e nem process.env.API_KEY, 
+        // em ambientes estáticos como Vercel puro, o usuário deve garantir o deploy.
+        console.warn("API_KEY não detectada. Se estiver no Vercel, certifique-se de realizar um novo Deploy após configurar a variável.");
+      }
+    };
+    checkKey();
+  }, []);
+
+  const handleOpenKeySelector = async () => {
+    if (window.aistudio) {
+      await window.aistudio.openSelectKey();
+      // Após o trigger, assumimos sucesso conforme as diretrizes
+      setNeedsKeyConfig(false);
+    }
+  };
 
   const loadNotes = useCallback(() => {
     const fetched = storageService.searchNotes(searchQuery);
@@ -50,6 +93,35 @@ const App: React.FC = () => {
     setEditingNote(note);
     setIsFormOpen(true);
   };
+
+  // Tela de Configuração de Chave (se necessário)
+  if (needsKeyConfig) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center space-y-6">
+          <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto">
+            <i className="fas fa-key text-3xl text-indigo-600"></i>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900">Configuração Necessária</h2>
+          <p className="text-gray-600">
+            Para utilizar as funções de IA (como melhorar textos), é necessário vincular uma chave de API do Gemini.
+          </p>
+          <div className="space-y-4">
+            <Button 
+              className="w-full rounded-xl py-6 text-lg font-bold" 
+              onClick={handleOpenKeySelector}
+            >
+              Vincular API Key agora
+            </Button>
+            <p className="text-xs text-gray-400">
+              É necessário utilizar uma chave de um projeto GCP com faturamento ativo. 
+              Consulte a <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-indigo-500 underline">documentação de faturamento</a>.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
