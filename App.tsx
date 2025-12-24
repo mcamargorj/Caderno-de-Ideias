@@ -20,7 +20,6 @@ const App: React.FC = () => {
 
   const triggerLogoSpin = () => {
     setIsLogoSpinning(true);
-    // Remove a classe após a animação terminar (1s no CSS) para poder disparar novamente
     setTimeout(() => setIsLogoSpinning(false), 1000);
   };
 
@@ -45,7 +44,7 @@ const App: React.FC = () => {
       storageService.updateNote(editingNote.id, data);
     } else {
       storageService.createNote(data);
-      triggerLogoSpin(); // Gira ao criar nota nova
+      triggerLogoSpin();
     }
     setEditingNote(undefined);
     setIsFormOpen(false);
@@ -109,18 +108,28 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-auto p-4 bg-indigo-600 rounded-2xl text-white shadow-xl shadow-indigo-200 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-16 h-16 bg-white/10 rounded-full -mr-8 -mt-8 transition-transform group-hover:scale-150"></div>
-          <p className="text-[10px] font-bold opacity-80 uppercase mb-2">Insight da IA</p>
-          <p className="text-xs font-medium leading-relaxed italic">"{dailyInsight}"</p>
+        <div className="mt-auto space-y-4">
+          <div className="p-4 bg-indigo-600 rounded-2xl text-white shadow-xl shadow-indigo-200 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-16 h-16 bg-white/10 rounded-full -mr-8 -mt-8 transition-transform group-hover:scale-150"></div>
+            <p className="text-[10px] font-bold opacity-80 uppercase mb-2">Insight da IA</p>
+            <p className="text-xs font-medium leading-relaxed italic">"{dailyInsight}"</p>
+          </div>
+          
+          <div className="px-3 py-2 bg-gray-100/50 rounded-xl border border-dashed border-gray-300">
+            <div className="flex items-center gap-2 mb-1 text-gray-500">
+              <i className="fas fa-database text-[10px]"></i>
+              <span className="text-[9px] font-bold uppercase tracking-wider">Armazenamento Local</span>
+            </div>
+            <p className="text-[9px] text-gray-400 leading-tight">
+              Suas notas são salvas apenas neste navegador. Limpar os dados do site apagará suas anotações.
+            </p>
+          </div>
         </div>
       </aside>
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
         <header className="px-6 py-4 md:py-6 md:px-10 flex flex-col md:flex-row items-center justify-between gap-4 sticky top-0 z-30 bg-white/40 backdrop-blur-md border-b md:border-none">
-          {/* Mobile Header Branding */}
           <div className="flex items-center justify-between w-full md:hidden mb-2">
             <div className="flex items-center gap-2 cursor-pointer" onClick={triggerLogoSpin}>
               <img 
@@ -135,7 +144,6 @@ const App: React.FC = () => {
             </button>
           </div>
 
-          {/* Search Box */}
           <div className={`flex-1 max-w-2xl w-full relative group ${!isSearchActive && 'hidden md:block'}`}>
             <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors"></i>
             <input 
@@ -147,7 +155,6 @@ const App: React.FC = () => {
             />
           </div>
 
-          {/* Desktop Actions Section */}
           <div className="hidden md:flex items-center gap-4">
             <Button 
               variant="primary" 
@@ -162,7 +169,6 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        {/* Insight Card - Mobile Feature */}
         <div className="md:hidden px-6 mt-2">
           <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
             <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">Dica de hoje</p>
@@ -196,7 +202,7 @@ const App: React.FC = () => {
                 </div>
                 <h3 className="text-xl md:text-2xl font-black text-gray-800 mb-2 tracking-tight">O papel está em branco</h3>
                 <p className="text-gray-500 text-xs md:text-sm font-medium leading-relaxed mb-6">
-                  Nenhuma nota encontrada. Que tal capturar seu primeiro pensamento agora?
+                  Suas ideias são privadas e armazenadas localmente no seu dispositivo.
                 </p>
                 <Button variant="primary" className="rounded-2xl px-8" onClick={() => setIsFormOpen(true)}>
                   Escrever Agora
@@ -207,7 +213,6 @@ const App: React.FC = () => {
         </main>
       </div>
 
-      {/* Floating Action Button - Mobile Feature */}
       <button 
         onClick={() => {
           setEditingNote(undefined);
@@ -218,7 +223,6 @@ const App: React.FC = () => {
         <i className="fas fa-plus text-xl"></i>
       </button>
 
-      {/* Bottom Navigation - Mobile Feature */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t px-6 py-3 flex items-center justify-around z-50">
         <button 
           onClick={() => { setFilterColor(null); window.scrollTo({top: 0, behavior: 'smooth'}); }}
