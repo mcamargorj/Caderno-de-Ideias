@@ -35,10 +35,11 @@ async function decodeAudioData(
 export class GeminiService {
   private audioContext: AudioContext | null = null;
 
-  // @google/genai: Cria nova instância em cada chamada para garantir o uso da chave atualizada
+  // @google/genai: Cria nova instância em cada chamada para garantir o uso da chave mais recente
   private getClient() {
     const apiKey = process.env.API_KEY;
-    if (!apiKey) {
+    // Verificação básica de validade da string da chave
+    if (!apiKey || apiKey === 'undefined' || apiKey.length < 10) {
       throw new Error("API_KEY_MISSING");
     }
     return new GoogleGenAI({ apiKey });
@@ -49,7 +50,7 @@ export class GeminiService {
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
     }
     if (this.audioContext.state === 'suspended') {
-      this.audioContext.resume().catch(e => console.warn("AudioContext resume failed", e));
+      this.audioContext.resume().catch(e => console.warn("Falha ao retomar AudioContext", e));
     }
     return this.audioContext;
   }
@@ -58,16 +59,17 @@ export class GeminiService {
     try {
       const ai = this.getClient();
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Melhore este texto de nota adesiva para torná-lo mais profissional e organizado. Seja conciso e mantenha o tom útil. Responda apenas com o texto melhorado: "${content}"`,
+        model: 'gemini-3-flash-preview', // Otimizado para camada gratuita e velocidade
+        contents: `Melhore este texto de nota adesiva. Torne-o profissional, organizado e sem erros. Responda APENAS com o texto melhorado em Português: "${content}"`,
       });
       
       const text = response.text;
-      if (!text) throw new Error("A IA não retornou conteúdo.");
+      if (!text) throw new Error("A IA retornou uma resposta vazia.");
       return text;
     } catch (error: any) {
-      // @google/genai: Se a entidade não for encontrada, a chave provavelmente é inválida
-      if (error.message?.includes("Requested entity was not found") || error.status === 404) {
+      console.error("Erro no Gemini (Enhance):", error);
+      // @google/genai: Tratamento específico para chave inválida ou projeto não encontrado
+      if (error.message?.includes("Requested entity was not found") || error.status === 404 || error.message?.includes("API key not valid")) {
         throw new Error("API_KEY_INVALID");
       }
       throw error;
@@ -84,7 +86,7 @@ export class GeminiService {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
             voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: 'Kore' },
+              prebuiltVoiceConfig: { voiceName: 'Kore' }, // Voz natural em português
             },
           },
         },
@@ -107,12 +109,14 @@ export class GeminiService {
         source.start();
       }
     } catch (error: any) {
-      console.warn("TTS Gemini falhou, usando fallback nativo:", error);
+      console.warn("TTS Gemini falhou, tentando fallback nativo do sistema:", error);
+      
+      // Fallback para SpeechSynthesis do navegador
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'pt-BR';
       window.speechSynthesis.speak(utterance);
       
-      if (error.message?.includes("Requested entity was not found") || error.status === 404) {
+      if (error.message?.includes("Requested entity was not found") || error.status === 404 || error.message?.includes("API key not valid")) {
         throw new Error("API_KEY_INVALID");
       }
     }

@@ -7,14 +7,14 @@ import { NoteForm } from './components/NoteForm.tsx';
 import { Button } from './components/Button.tsx';
 
 // @google/genai guidelines: Extend the Window interface correctly within declare global.
-// Using inline types to avoid "Subsequent property declarations must have the same type" errors
-// caused by local/global interface name shadowing.
+// We define AIStudio and extend Window without conflicting modifiers to match the environment.
 declare global {
+  interface AIStudio {
+    hasSelectedApiKey(): Promise<boolean>;
+    openSelectKey(): Promise<void>;
+  }
   interface Window {
-    readonly aistudio: {
-      hasSelectedApiKey(): Promise<boolean>;
-      openSelectKey(): Promise<void>;
-    };
+    aistudio: AIStudio;
   }
 }
 
@@ -30,27 +30,35 @@ const App: React.FC = () => {
   const hasAttemptedSelection = useRef(false);
 
   const checkApiKey = useCallback(async () => {
-    // Se o usuário já tentou selecionar ou a chave já existe no process.env, não bloqueamos
+    // 1. Verifica se já forçamos a entrada nesta sessão
     if (hasAttemptedSelection.current) {
       setNeedsKey(false);
       return;
     }
 
-    if (process.env.API_KEY && process.env.API_KEY.length > 10) {
+    // 2. Verifica se a chave está presente no ambiente de forma direta
+    const envKey = process.env.API_KEY;
+    if (envKey && envKey !== 'undefined' && envKey.length > 5) {
       setNeedsKey(false);
       return;
     }
 
+    // 3. Verifica através da ferramenta do AI Studio se disponível
     if (window.aistudio) {
       try {
         const hasKey = await window.aistudio.hasSelectedApiKey();
-        setNeedsKey(!hasKey);
+        // Se a ferramenta diz que tem, ou se o process.env já tem algo, liberamos
+        if (hasKey) {
+          setNeedsKey(false);
+          return;
+        }
       } catch (e) {
-        setNeedsKey(true);
+        console.warn("Aviso: Falha ao checar chave via AI Studio, aguardando interação.");
       }
-    } else {
-      setNeedsKey(true);
     }
+
+    // Se chegamos aqui e não temos chave detectada, mostramos a tela de setup
+    setNeedsKey(true);
   }, []);
 
   useEffect(() => {
@@ -58,6 +66,7 @@ const App: React.FC = () => {
   }, [checkApiKey]);
 
   const handleKeyError = useCallback(() => {
+    // Se um erro de chave ocorrer durante o uso, voltamos para a tela de setup
     hasAttemptedSelection.current = false;
     setNeedsKey(true);
   }, []);
@@ -66,14 +75,18 @@ const App: React.FC = () => {
     if (window.aistudio) {
       try {
         await window.aistudio.openSelectKey();
-        // @google/genai: Assume sucesso imediato para evitar condições de corrida
+        // @google/genai guidelines: Assume sucesso imediato após disparar o seletor
+        // para evitar condições de corrida onde a chave demora a ser injetada.
         hasAttemptedSelection.current = true;
         setNeedsKey(false);
       } catch (err) {
-        console.error("Erro ao abrir seletor:", err);
+        console.error("Erro ao abrir seletor de chave:", err);
       }
     } else {
-      alert("Ambiente de configuração não detectado.");
+      // Fallback para ambientes onde o aistudio provider não está presente
+      alert("Ambiente de configuração não detectado. Se você já configurou a variável API_KEY, tente recarregar a página.");
+      setNeedsKey(false);
+      hasAttemptedSelection.current = true;
     }
   };
 
@@ -104,7 +117,7 @@ const App: React.FC = () => {
   };
 
   const handleDeleteNote = (id: string) => {
-    if (confirm('Excluir esta nota permanentemente?')) {
+    if (confirm('Deseja excluir esta nota permanentemente?')) {
       storageService.deleteNote(id);
       loadNotes();
     }
@@ -120,33 +133,30 @@ const App: React.FC = () => {
           <div className="space-y-2">
             <h2 className="text-2xl font-black text-gray-900">Configurar Acesso</h2>
             <p className="text-gray-500 text-sm leading-relaxed">
-              O "Caderno de Ideias" usa o Google Gemini para organizar seus pensamentos. 
-              Sua chave parece não estar configurada ou ativa.
+              Para usar as funções de Inteligência Artificial (melhorar texto e leitura), 
+              é necessário vincular sua <strong>API Key</strong> do Google Gemini.
             </p>
-            {/* @google/genai: Providing the mandatory billing documentation link as per guidelines. */}
-            <p className="text-xs text-gray-400 mt-2 italic">
-              É necessário vincular uma chave API de um projeto com faturamento ativo.
-              <br />
-              <a 
-                href="https://ai.google.dev/gemini-api/docs/billing" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="text-indigo-600 hover:underline font-semibold"
-              >
-                Documentação de Faturamento do Gemini API
-              </a>
+            <p className="text-xs text-indigo-600 font-semibold bg-indigo-50 py-2 rounded-lg mt-4">
+              <i className="fas fa-info-circle mr-1"></i> Dica: O Nível Gratuito é suportado!
             </p>
           </div>
           <div className="space-y-4">
             <Button 
-              className="w-full h-14 rounded-2xl text-lg font-bold shadow-lg shadow-indigo-100 transition-transform active:scale-95" 
+              className="w-full h-14 rounded-2xl text-lg font-bold shadow-lg shadow-indigo-100 transition-all hover:scale-[1.02] active:scale-95" 
               onClick={handleSelectKey}
             >
-              Vincular Minha Chave
+              Configurar Chave Agora
             </Button>
-            <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">
-              O uso de IA requer créditos ativos no Google Cloud
-            </p>
+            <div className="pt-2">
+              <a 
+                href="https://ai.google.dev/gemini-api/docs/billing" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-[10px] text-gray-400 hover:text-indigo-500 transition-colors uppercase font-bold tracking-widest"
+              >
+                Documentação de Faturamento <i className="fas fa-external-link-alt ml-1 text-[8px]"></i>
+              </a>
+            </div>
           </div>
         </div>
       </div>
@@ -163,7 +173,7 @@ const App: React.FC = () => {
               alt="Logo" 
               className="h-10 w-auto object-contain transition-transform duration-500 hover:rotate-12"
             />
-            <div className="border-l pl-4 border-gray-200">
+            <div className="border-l pl-4 border-gray-200 text-left">
               <h1 className="text-xl font-black text-gray-900 tracking-tight leading-none">Caderno de Ideias</h1>
               <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-[0.2em] mt-1">Inteligência MSCHelp</p>
             </div>
@@ -173,7 +183,7 @@ const App: React.FC = () => {
             <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
             <input 
               type="text"
-              placeholder="Pesquisar notas..."
+              placeholder="Pesquisar em suas notas..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-11 pr-4 py-2.5 bg-gray-100 border-none rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all outline-none text-sm"
@@ -197,7 +207,7 @@ const App: React.FC = () => {
         {isLoading ? (
           <div className="flex flex-col items-center justify-center h-64 text-gray-400">
             <i className="fas fa-circle-notch fa-spin text-4xl mb-4 text-indigo-200"></i>
-            <p>Carregando notas...</p>
+            <p className="font-medium">Carregando...</p>
           </div>
         ) : notes.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
@@ -213,23 +223,29 @@ const App: React.FC = () => {
             ))}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center h-96 text-center space-y-4 grayscale opacity-50">
-            <i className="fas fa-lightbulb text-6xl text-gray-300"></i>
-            <h3 className="text-xl font-bold text-gray-700">Nenhuma ideia por aqui ainda</h3>
-            <p className="text-sm text-gray-500 max-w-xs">Comece a capturar seus pensamentos clicando em "Nova Nota".</p>
+          <div className="flex flex-col items-center justify-center h-96 text-center space-y-4">
+            <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center text-gray-200 shadow-sm border border-gray-100">
+              <i className="fas fa-feather-alt text-4xl"></i>
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-700">O caderno está vazio</h3>
+              <p className="text-gray-400 max-w-xs mx-auto text-sm">
+                Suas ideias brilham mais quando registradas. Clique em "Nova Nota" para começar.
+              </p>
+            </div>
           </div>
         )}
       </main>
 
-      <footer className="bg-white border-t py-6 px-6 text-gray-400 text-[10px] font-medium uppercase tracking-widest">
+      <footer className="bg-white/40 border-t py-6 px-6 text-gray-400 text-[10px] font-medium uppercase tracking-widest">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <p>© 2025 Caderno de Ideias • MSCHelp Engineering</p>
           <div className="flex items-center gap-6">
             <span className="flex items-center gap-2">
-              <i className="fas fa-microchip"></i> Gemini Flash 3
+              <i className="fas fa-microchip"></i> Gemini 3 Flash
             </span>
             <span className="flex items-center gap-2">
-              <i className="fas fa-wave-square"></i> TTS Engine Ativo
+              <i className="fas fa-shield-halved"></i> Armazenamento Local
             </span>
           </div>
         </div>
