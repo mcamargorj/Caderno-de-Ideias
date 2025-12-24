@@ -6,16 +6,16 @@ import { NoteCard } from './components/NoteCard.tsx';
 import { NoteForm } from './components/NoteForm.tsx';
 import { Button } from './components/Button.tsx';
 
-// @google/genai guidelines: Use a unique interface name (AppAIStudio) to avoid conflicts with potential global AIStudio definitions.
-interface AppAIStudio {
+// @google/genai guidelines: Ensure interface name matches environment expectation to avoid conflicts
+interface AIStudio {
   hasSelectedApiKey(): Promise<boolean>;
   openSelectKey(): Promise<void>;
 }
 
 declare global {
   interface Window {
-    // @google/genai guidelines: Adding readonly modifier to match the platform's global aistudio definition and fix modifier mismatch errors.
-    readonly aistudio: AppAIStudio;
+    // Match environment modifiers and type naming
+    aistudio: AIStudio;
   }
 }
 
@@ -27,41 +27,45 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [needsKey, setNeedsKey] = useState(false);
 
-  const handleKeyError = useCallback(() => {
-    setNeedsKey(true);
+  // Verifica se a chave existe no ambiente ou via ferramenta
+  const checkApiKey = useCallback(async () => {
+    // Se a chave já estiver no process.env, não precisamos de mais nada
+    if (process.env.API_KEY && process.env.API_KEY.length > 5) {
+      setNeedsKey(false);
+      return;
+    }
+
+    if (window.aistudio) {
+      try {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        setNeedsKey(!hasKey);
+      } catch (e) {
+        setNeedsKey(true);
+      }
+    } else {
+      setNeedsKey(true);
+    }
   }, []);
 
   useEffect(() => {
-    const checkApiKey = async () => {
-      // @google/genai guidelines: Use window.aistudio.hasSelectedApiKey() to check key availability as priority.
-      if (window.aistudio) {
-        try {
-          const hasKey = await window.aistudio.hasSelectedApiKey();
-          setNeedsKey(!hasKey);
-        } catch (e) {
-          // Fallback to process.env if interface check fails
-          setNeedsKey(!process.env.API_KEY);
-        }
-      } else if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-        setNeedsKey(false);
-      } else {
-        setNeedsKey(true);
-      }
-    };
     checkApiKey();
+  }, [checkApiKey]);
+
+  const handleKeyError = useCallback(() => {
+    setNeedsKey(true);
   }, []);
 
   const handleSelectKey = async () => {
     if (window.aistudio) {
       try {
         await window.aistudio.openSelectKey();
-        // @google/genai guidelines: Assume success after openSelectKey() to avoid race conditions.
+        // @google/genai guidelines: Assume sucesso imediato para evitar race conditions
         setNeedsKey(false);
       } catch (err) {
         console.error("Erro ao selecionar chave:", err);
       }
     } else {
-      alert("Ambiente de seleção de chave não detectado. Se você configurou no Vercel, certifique-se de que o Build Step está injetando a variável corretamente ou use o ambiente do AI Studio.");
+      alert("Acesse este app através do ambiente oficial para configurar sua chave.");
     }
   };
 
@@ -113,7 +117,8 @@ const App: React.FC = () => {
           <div className="space-y-2">
             <h2 className="text-2xl font-black text-gray-900">Configuração de Chave</h2>
             <p className="text-gray-500 text-sm leading-relaxed">
-              Para usar as funções de IA, você precisa vincular sua <strong>API Key</strong> do Google Gemini. Sua chave do <strong>Nível Gratuito</strong> funcionará perfeitamente aqui.
+              Detectamos que sua chave ainda não está ativa neste ambiente. 
+              Clique no botão abaixo para vincular sua chave do <strong>Google AI Studio</strong>.
             </p>
           </div>
           <div className="space-y-4">
@@ -127,9 +132,9 @@ const App: React.FC = () => {
               <a 
                 href="https://ai.google.dev/gemini-api/docs/billing" 
                 target="_blank" 
-                className="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition-colors"
+                className="text-[10px] text-gray-400 hover:text-indigo-500 transition-colors uppercase font-bold tracking-widest"
               >
-                Documentação de faturamento do Gemini <i className="fas fa-external-link-alt ml-1"></i>
+                Documentação de Faturamento <i className="fas fa-external-link-alt ml-1"></i>
               </a>
             </div>
           </div>

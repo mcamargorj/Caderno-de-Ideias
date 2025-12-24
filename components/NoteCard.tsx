@@ -28,7 +28,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
       }
     } catch (err: any) {
       console.error("Falha ao melhorar nota:", err);
-      if (err.message?.includes("Chave de API inválida") || err.message?.includes("Requested entity was not found")) {
+      if (err.message === "API_KEY_INVALID" || err.message === "API_KEY_MISSING") {
         onKeyError?.();
       } else {
         alert(err.message || "Ocorreu um erro ao tentar usar a IA.");
@@ -45,10 +45,12 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
     setIsSpeaking(true);
     try {
       await geminiService.speak(note.content);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Falha ao reproduzir áudio:", err);
+      if (err.message === "API_KEY_INVALID" || err.message === "API_KEY_MISSING") {
+        onKeyError?.();
+      }
     } finally {
-      // Pequeno delay para resetar o ícone
       setTimeout(() => setIsSpeaking(false), 1000);
     }
   };
@@ -66,7 +68,6 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
       className={`sticky-note w-full aspect-square ${note.color} p-6 shadow-lg relative flex flex-col cursor-default group/card border border-black/5`}
       onClick={() => onEdit(note)}
     >
-      {/* Fita adesiva decorativa */}
       <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-20 h-8 bg-white/40 rotate-1 pointer-events-none"></div>
       
       <div className="flex justify-between items-start mb-2 group">
