@@ -1,7 +1,7 @@
 
 import { GoogleGenAI, Modality } from "@google/genai";
 
-// Funções de utilidade para codificação/decodificação manual conforme exigido
+// Helper: Decodifica base64 para Uint8Array
 function decode(base64: string) {
   const binaryString = atob(base64);
   const len = binaryString.length;
@@ -12,6 +12,7 @@ function decode(base64: string) {
   return bytes;
 }
 
+// Helper: Decodifica Raw PCM (16-bit LE) para AudioBuffer
 async function decodeAudioData(
   data: Uint8Array,
   ctx: AudioContext,
@@ -34,7 +35,7 @@ async function decodeAudioData(
 export class GeminiService {
   private audioContext: AudioContext | null = null;
 
-  // Cria uma nova instância a cada chamada para garantir o uso da chave mais recente do ambiente
+  // @google/genai: Cria nova instância em cada chamada para garantir o uso da chave atualizada
   private getClient() {
     const apiKey = process.env.API_KEY;
     if (!apiKey) {
@@ -58,30 +59,18 @@ export class GeminiService {
       const ai = this.getClient();
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Melhore este texto de nota adesiva para torná-lo mais profissional e organizado. Responda apenas com o texto melhorado em Português: "${content}"`,
+        contents: `Melhore este texto de nota adesiva para torná-lo mais profissional e organizado. Seja conciso e mantenha o tom útil. Responda apenas com o texto melhorado: "${content}"`,
       });
       
       const text = response.text;
-      if (!text) throw new Error("IA retornou vazio.");
+      if (!text) throw new Error("A IA não retornou conteúdo.");
       return text;
     } catch (error: any) {
+      // @google/genai: Se a entidade não for encontrada, a chave provavelmente é inválida
       if (error.message?.includes("Requested entity was not found") || error.status === 404) {
         throw new Error("API_KEY_INVALID");
       }
       throw error;
-    }
-  }
-
-  async summarizeNote(content: string): Promise<string> {
-    try {
-      const ai = this.getClient();
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Resuma esta nota em uma única frase curta: "${content}"`,
-      });
-      return response.text || content;
-    } catch (error) {
-      return content;
     }
   }
 
@@ -118,10 +107,14 @@ export class GeminiService {
         source.start();
       }
     } catch (error: any) {
-      console.warn("TTS Error, using system fallback:", error);
+      console.warn("TTS Gemini falhou, usando fallback nativo:", error);
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'pt-BR';
       window.speechSynthesis.speak(utterance);
+      
+      if (error.message?.includes("Requested entity was not found") || error.status === 404) {
+        throw new Error("API_KEY_INVALID");
+      }
     }
   }
 }
