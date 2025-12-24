@@ -35,14 +35,10 @@ async function decodeAudioData(
 export class GeminiService {
   private audioContext: AudioContext | null = null;
 
-  // @google/genai: Cria nova instância em cada chamada para garantir o uso da chave mais recente
+  // @google/genai: Use process.env.API_KEY directly.
+  // Initialization must happen with the named parameter apiKey.
   private getClient() {
-    const apiKey = process.env.API_KEY;
-    // Verificação básica de validade da string da chave
-    if (!apiKey || apiKey === 'undefined' || apiKey.length < 10) {
-      throw new Error("API_KEY_MISSING");
-    }
-    return new GoogleGenAI({ apiKey });
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
 
   private getAudioContext(): AudioContext {
@@ -50,7 +46,7 @@ export class GeminiService {
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
     }
     if (this.audioContext.state === 'suspended') {
-      this.audioContext.resume().catch(e => console.warn("Falha ao retomar AudioContext", e));
+      this.audioContext.resume().catch(e => console.warn("Erro ao ativar áudio", e));
     }
     return this.audioContext;
   }
@@ -59,18 +55,20 @@ export class GeminiService {
     try {
       const ai = this.getClient();
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview', // Otimizado para camada gratuita e velocidade
-        contents: `Melhore este texto de nota adesiva. Torne-o profissional, organizado e sem erros. Responda APENAS com o texto melhorado em Português: "${content}"`,
+        model: 'gemini-3-flash-preview',
+        contents: `Melhore este texto de nota adesiva. Mantenha o sentido original mas torne-o mais claro e profissional. Responda apenas com o texto corrigido em Português: "${content}"`,
       });
       
+      // Accessing response.text property directly as per @google/genai guidelines.
       const text = response.text;
-      if (!text) throw new Error("A IA retornou uma resposta vazia.");
+      if (!text) throw new Error("Resposta da IA vazia.");
       return text;
     } catch (error: any) {
-      console.error("Erro no Gemini (Enhance):", error);
-      // @google/genai: Tratamento específico para chave inválida ou projeto não encontrado
-      if (error.message?.includes("Requested entity was not found") || error.status === 404 || error.message?.includes("API key not valid")) {
-        throw new Error("API_KEY_INVALID");
+      console.error("Gemini Error:", error);
+      
+      // Robust handling for API errors (e.g., 4xx/5xx).
+      if (error.status === 429) {
+        throw new Error("Limite de uso atingido. Tente novamente em um minuto.");
       }
       throw error;
     }
@@ -86,7 +84,7 @@ export class GeminiService {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
             voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: 'Kore' }, // Voz natural em português
+              prebuiltVoiceConfig: { voiceName: 'Kore' },
             },
           },
         },
@@ -109,16 +107,12 @@ export class GeminiService {
         source.start();
       }
     } catch (error: any) {
-      console.warn("TTS Gemini falhou, tentando fallback nativo do sistema:", error);
+      console.warn("Fallback de voz:", error);
       
-      // Fallback para SpeechSynthesis do navegador
+      // Native speech fallback.
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'pt-BR';
       window.speechSynthesis.speak(utterance);
-      
-      if (error.message?.includes("Requested entity was not found") || error.status === 404 || error.message?.includes("API key not valid")) {
-        throw new Error("API_KEY_INVALID");
-      }
     }
   }
 }

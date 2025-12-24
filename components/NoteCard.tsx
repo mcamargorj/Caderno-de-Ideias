@@ -9,10 +9,9 @@ interface NoteCardProps {
   onEdit: (note: Note) => void;
   onDelete: (id: string) => void;
   onUpdate: (id: string, updates: Partial<Note>) => void;
-  onKeyError?: () => void;
 }
 
-export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUpdate, onKeyError }) => {
+export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUpdate }) => {
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
@@ -28,11 +27,8 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
       }
     } catch (err: any) {
       console.error("Falha ao melhorar nota:", err);
-      if (err.message === "API_KEY_INVALID" || err.message === "API_KEY_MISSING") {
-        onKeyError?.();
-      } else {
-        alert(err.message || "Ocorreu um erro ao tentar usar a IA.");
-      }
+      // Removed specific API_KEY_INVALID handling as per guidelines.
+      alert(err.message || "Ocorreu um erro ao tentar usar a IA.");
     } finally {
       setIsEnhancing(false);
     }
@@ -47,9 +43,6 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
       await geminiService.speak(note.content);
     } catch (err: any) {
       console.error("Falha ao reproduzir áudio:", err);
-      if (err.message === "API_KEY_INVALID" || err.message === "API_KEY_MISSING") {
-        onKeyError?.();
-      }
     } finally {
       setTimeout(() => setIsSpeaking(false), 1000);
     }
