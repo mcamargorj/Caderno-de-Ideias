@@ -35,11 +35,6 @@ async function decodeAudioData(
 export class GeminiService {
   private audioContext: AudioContext | null = null;
 
-  private getClient() {
-    const apiKey = process.env.API_KEY;
-    return new GoogleGenAI({ apiKey: apiKey || '' });
-  }
-
   private getAudioContext(): AudioContext {
     if (!this.audioContext) {
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -52,32 +47,39 @@ export class GeminiService {
 
   async enhanceNote(content: string): Promise<string> {
     try {
-      const ai = this.getClient();
+      // Cria instância do cliente imediatamente antes da chamada para garantir uso da chave correta
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Melhore este texto de nota adesiva. Reescreva-o para ser mais inspirador, claro e bem estruturado. Responda APENAS com o texto melhorado em Português, sem nenhuma introdução ou aspas: "${content}"`,
+        contents: `Instrução: Melhore e corrija o seguinte texto de uma nota adesiva, tornando-o mais claro e profissional em Português. Retorne apenas o texto final sem explicações ou aspas.\n\nTexto: "${content}"`,
+        config: {
+          // Desabilita o "thinking" para reduzir latência em tarefas simples de texto
+          thinkingConfig: { thinkingBudget: 0 },
+          temperature: 0.7,
+        },
       });
       
-      // Seguindo a documentação: response.text é uma propriedade getter
       const text = response.text;
       
-      if (!text || text.trim().length === 0) {
-        throw new Error("A IA não retornou um conteúdo válido.");
+      if (!text) {
+        throw new Error("A IA não retornou conteúdo.");
       }
       
       return text.trim();
     } catch (error: any) {
-      console.error("Gemini Error (Enhance):", error);
-      if (error.status === 429) {
-        throw new Error("Cota de IA excedida. Tente novamente em instantes.");
+      console.error("Gemini Enhance Error:", error);
+      // Erro 429 é limite de cota
+      if (error?.status === 429 || error?.message?.includes('429')) {
+        throw new Error("Limite de uso atingido. Tente novamente em 1 minuto.");
       }
-      throw new Error("Não foi possível processar com IA agora.");
+      throw new Error("Falha na IA. Verifique sua conexão ou tente mais tarde.");
     }
   }
 
   async speak(text: string): Promise<void> {
     try {
-      const ai = this.getClient();
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
         contents: [{ parts: [{ text: text }] }],
@@ -108,7 +110,7 @@ export class GeminiService {
         source.start();
       }
     } catch (error: any) {
-      console.warn("Voz IA falhou, usando sistema:", error);
+      console.warn("TTS Gemini falhou, usando voz do sistema:", error);
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'pt-BR';
       window.speechSynthesis.speak(utterance);

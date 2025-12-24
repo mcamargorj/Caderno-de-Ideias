@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Note } from '../types.ts';
 import { Button } from './Button.tsx';
 import { geminiService } from '../services/geminiService.ts';
@@ -14,12 +14,22 @@ interface NoteCardProps {
 export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUpdate }) => {
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Limpa erro após alguns segundos
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => setError(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
 
   const handleEnhance = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!note.content.trim() || isEnhancing) return;
 
     setIsEnhancing(true);
+    setError(null);
     try {
       const improved = await geminiService.enhanceNote(note.content);
       if (improved && improved !== note.content) {
@@ -27,8 +37,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
       }
     } catch (err: any) {
       console.error("Falha ao melhorar nota:", err);
-      // Removed specific API_KEY_INVALID handling as per guidelines.
-      alert(err.message || "Ocorreu um erro ao tentar usar a IA.");
+      setError(err.message || "Erro na IA");
     } finally {
       setIsEnhancing(false);
     }
@@ -92,11 +101,13 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
 
       <div className="mt-4 flex flex-col gap-2">
         <div className="flex justify-between items-center text-[10px] text-gray-500 font-medium border-t border-black/5 pt-2">
-          <span>{formattedDate}</span>
+          <span className={error ? "text-red-500 font-bold" : ""}>
+            {error || formattedDate}
+          </span>
           <Button 
             variant="ghost" 
             size="sm" 
-            className={`h-7 px-3 text-[10px] rounded-lg transition-all ${isEnhancing ? 'bg-indigo-100 text-indigo-600' : 'bg-black/5 hover:bg-black/10'}`}
+            className={`h-7 px-3 text-[10px] rounded-lg transition-all ${isEnhancing ? 'bg-indigo-100 text-indigo-600' : 'bg-black/5 hover:bg-black/10'} ${error ? 'border-red-300 border' : ''}`}
             onClick={handleEnhance}
             isLoading={isEnhancing}
           >
