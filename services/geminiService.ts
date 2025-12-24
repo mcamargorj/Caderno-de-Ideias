@@ -3,41 +3,39 @@ import { GoogleGenAI } from "@google/genai";
 
 /**
  * Melhora o conteúdo de uma nota usando o modelo Gemini 3 Flash.
- * Garante o uso da API_KEY do process.env em cada chamada.
+ * Reinicializa o cliente a cada chamada para garantir o uso da chave atualizada (window.aistudio).
  */
 export const enhanceNote = async (content: string): Promise<string> => {
   const apiKey = process.env.API_KEY;
   
   if (!apiKey) {
-    throw new Error("API_KEY não encontrada no ambiente. Se estiver no Vercel, verifique se a variável foi configurada e se um novo deploy foi realizado.");
+    throw new Error("API_KEY não encontrada. Clique no botão de IA para configurar sua chave de acesso.");
   }
 
   try {
-    // Inicialização por chamada para capturar mudanças no process.env (ex: via aistudio.openSelectKey)
+    // IMPORTANTE: Criar nova instância para pegar a chave do diálogo de seleção
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Você é um editor assistente de notas adesivas. Melhore este texto para torná-lo mais profissional, claro e organizado, sem perder a essência. 
-      REGRAS:
-      1. RESPONDA APENAS EM PORTUGUÊS.
-      2. RETORNE APENAS O TEXTO MELHORADO, SEM EXPLICAÇÕES.
+      contents: `Atue como um editor de textos profissional. Melhore e organize esta nota adesiva para que fique mais clara e objetiva. 
+      Mantenha o idioma original (Português). 
+      Responda APENAS com o texto melhorado, sem comentários adicionais:
       
-      CONTEÚDO: "${content}"`,
+      "${content}"`,
     });
     
     const improvedText = response.text;
-    if (!improvedText) throw new Error("A IA retornou uma resposta vazia.");
+    if (!improvedText) throw new Error("A IA não retornou conteúdo. Tente novamente.");
     
     return improvedText;
   } catch (error: any) {
-    console.error("Erro na Gemini API:", error);
+    console.error("Erro Gemini:", error);
     
-    // Tratamento específico para erro de entidade não encontrada (chave inválida ou expirada)
     if (error.message?.includes("Requested entity was not found")) {
-      throw new Error("Chave de API inválida ou projeto não encontrado. Tente configurar a chave novamente.");
+      throw new Error("Chave de API inválida ou projeto não encontrado. Tente reconfigurar a chave.");
     }
     
-    throw error;
+    throw new Error("Não foi possível processar com IA no momento. Verifique sua chave e conexão.");
   }
 };
 
@@ -52,12 +50,11 @@ export const summarizeNote = async (content: string): Promise<string> => {
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Resuma esta nota em uma única frase curta e impactante em PORTUGUÊS: \n\n"${content}"`,
+      contents: `Resuma esta nota em uma única frase curta: \n\n"${content}"`,
     });
     
     return response.text || content;
   } catch (error) {
-    console.error("Erro no resumo Gemini:", error);
     return content;
   }
 };

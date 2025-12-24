@@ -9,9 +9,10 @@ interface NoteCardProps {
   onEdit: (note: Note) => void;
   onDelete: (id: string) => void;
   onUpdate: (id: string, updates: Partial<Note>) => void;
+  onKeyError?: () => void;
 }
 
-export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUpdate }) => {
+export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUpdate, onKeyError }) => {
   const [isEnhancing, setIsEnhancing] = useState(false);
 
   const handleEnhance = async (e: React.MouseEvent) => {
@@ -26,7 +27,13 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
       }
     } catch (err: any) {
       console.error("Falha ao melhorar nota:", err);
-      alert(err.message || "Ocorreu um erro ao tentar usar a IA. Verifique sua conexão e chave de API.");
+      
+      // @google/genai guidelines: If the key is invalid or not found, reset selection state.
+      if (err.message?.includes("Chave de API inválida") || err.message?.includes("Requested entity was not found")) {
+        onKeyError?.();
+      } else {
+        alert(err.message || "Ocorreu um erro ao tentar usar a IA. Verifique sua conexão e chave de API.");
+      }
     } finally {
       setIsEnhancing(false);
     }
