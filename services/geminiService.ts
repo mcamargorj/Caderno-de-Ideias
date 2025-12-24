@@ -47,33 +47,42 @@ export class GeminiService {
 
   async enhanceNote(content: string): Promise<string> {
     try {
-      // Cria instância do cliente imediatamente antes da chamada para garantir uso da chave correta
+      // Inicialização imediata com a chave do ambiente
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
       
+      // Chamada otimizada usando a estrutura de partes recomendada
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Instrução: Melhore e corrija o seguinte texto de uma nota adesiva, tornando-o mais claro e profissional em Português. Retorne apenas o texto final sem explicações ou aspas.\n\nTexto: "${content}"`,
+        contents: { 
+          parts: [{ 
+            text: `Aja como um editor profissional. Melhore o texto desta nota adesiva para torná-lo mais claro, elegante e profissional em Português. Retorne APENAS o texto melhorado, sem aspas ou explicações adicionais. Texto: "${content}"` 
+          }] 
+        },
         config: {
-          // Desabilita o "thinking" para reduzir latência em tarefas simples de texto
-          thinkingConfig: { thinkingBudget: 0 },
-          temperature: 0.7,
+          temperature: 0.8,
+          // Deixamos o modelo decidir o thinking para evitar bloqueios de cota em modelos preview
         },
       });
       
       const text = response.text;
       
       if (!text) {
-        throw new Error("A IA não retornou conteúdo.");
+        throw new Error("A IA não retornou uma resposta válida.");
       }
       
       return text.trim();
     } catch (error: any) {
-      console.error("Gemini Enhance Error:", error);
-      // Erro 429 é limite de cota
+      console.error("Erro detalhado na IA:", error);
+      
+      // Tratamento específico de erros comuns
       if (error?.status === 429 || error?.message?.includes('429')) {
-        throw new Error("Limite de uso atingido. Tente novamente em 1 minuto.");
+        throw new Error("Cota excedida. Tente novamente em 1 min.");
       }
-      throw new Error("Falha na IA. Verifique sua conexão ou tente mais tarde.");
+      if (error?.message?.includes('API key not valid')) {
+        throw new Error("Chave de API inválida no Vercel.");
+      }
+      
+      throw new Error("IA temporariamente indisponível.");
     }
   }
 
@@ -110,7 +119,7 @@ export class GeminiService {
         source.start();
       }
     } catch (error: any) {
-      console.warn("TTS Gemini falhou, usando voz do sistema:", error);
+      console.warn("TTS falhou, usando fallback local:", error);
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'pt-BR';
       window.speechSynthesis.speak(utterance);
