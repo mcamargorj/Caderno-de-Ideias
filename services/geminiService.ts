@@ -1,5 +1,6 @@
 
 import { GoogleGenAI, Modality } from "@google/genai";
+import { Language } from "../types.ts";
 
 // Helper: Decodifica base64 para Uint8Array
 function decode(base64: string) {
@@ -45,32 +46,36 @@ export class GeminiService {
     return this.audioContext;
   }
 
-  async getDailyInsight(): Promise<string> {
-    // Use process.env.API_KEY directly for initialization as per guidelines
+  async getDailyInsight(lang: Language = Language.PT): Promise<string> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: "Gere uma frase curta, inspiradora e produtiva sobre criatividade e organização em Português do Brasil. Seja breve (máximo 15 palavras).",
-        config: { temperature: 0.9 },
-      });
-      return response.text?.trim() || "Sua criatividade é sua melhor ferramenta.";
-    } catch {
-      return "Foco e organização levam ao sucesso.";
-    }
-  }
-
-  async enhanceNote(content: string): Promise<string> {
-    // Use process.env.API_KEY directly for initialization as per guidelines
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = lang === Language.PT 
+      ? "Gere uma frase curta, inspiradora e produtiva sobre criatividade em Português do Brasil. Máximo 15 palavras."
+      : "Generate a short, inspiring and productive quote about creativity in English. Maximum 15 words.";
     
     try {
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Aja como um editor profissional. Melhore este texto de nota adesiva, tornando-o mais claro e profissional em Português do Brasil. Mantenha o tom original mas melhore a escrita. Responda APENAS com o texto melhorado. Texto: "${content}"`,
+        contents: prompt,
+        config: { temperature: 0.9 },
+      });
+      return response.text?.trim() || (lang === Language.PT ? "Sua criatividade é sua melhor ferramenta." : "Your creativity is your best tool.");
+    } catch {
+      return lang === Language.PT ? "Foco e organização levam ao sucesso." : "Focus and organization lead to success.";
+    }
+  }
+
+  async enhanceNote(content: string, lang: Language = Language.PT): Promise<string> {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const systemPrompt = lang === Language.PT
+      ? `Aja como um editor profissional. Melhore este texto, tornando-o mais claro e profissional em Português do Brasil. Responda APENAS com o texto melhorado. Texto: "${content}"`
+      : `Act as a professional editor. Improve this text, making it clearer and more professional in English. Answer ONLY with the improved text. Text: "${content}"`;
+    
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: systemPrompt,
         config: { temperature: 0.7 },
       });
-
       return response.text?.trim() || content;
     } catch (error: any) {
       console.error("Erro na melhoria de texto:", error);
@@ -78,19 +83,17 @@ export class GeminiService {
     }
   }
 
-  async speak(text: string): Promise<void> {
-    // Use process.env.API_KEY directly for initialization as per guidelines
+  async speak(text: string, lang: Language = Language.PT): Promise<void> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    
     try {
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: `Diga o seguinte texto: ${text}` }] }],
+        contents: [{ parts: [{ text: text }] }],
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
             voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: 'Kore' },
+              prebuiltVoiceConfig: { voiceName: lang === Language.PT ? 'Kore' : 'Zephyr' },
             },
           },
         },
@@ -110,13 +113,13 @@ export class GeminiService {
         throw new Error();
       }
     } catch {
-      this.fallbackSpeak(text);
+      this.fallbackSpeak(text, lang);
     }
   }
 
-  private fallbackSpeak(text: string) {
+  private fallbackSpeak(text: string, lang: Language) {
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'pt-BR';
+    utterance.lang = lang === Language.PT ? 'pt-BR' : 'en-US';
     window.speechSynthesis.speak(utterance);
   }
 }

@@ -8,6 +8,11 @@ export enum NoteColor {
   ORANGE = 'bg-orange-200'
 }
 
+export enum Language {
+  PT = 'pt-BR',
+  EN = 'en-US'
+}
+
 export interface Note {
   id: string;
   title: string;
@@ -21,4 +26,5 @@ export interface Note {
 export interface StorageState {
   notes: Note[];
   version: number;
+  language?: Language;
 }
