@@ -28,7 +28,7 @@
             background-size: 30px 30px;
         }
 
-        /* Blobs Decorativos para preencher espaços vazios */
+        /* Blobs Decorativos */
         .blob {
             position: fixed;
             width: 500px;
@@ -52,7 +52,6 @@
             to { transform: rotate(360deg); }
         }
 
-        /* Rotação rápida e única */
         .animate-spin-once {
             animation: logo-spin 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
@@ -65,25 +64,69 @@
             box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
         }
 
+        /* --- TEMAS ESPECIAIS --- */
+        
+        /* Tema Amor (Hearts) */
+        .theme-hearts {
+            background-color: #fce7f3;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%23f472b6' fill-opacity='0.2' d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'/%3E%3C/svg%3E");
+            background-size: 40px 40px;
+        }
+
+        /* Tema Celebração (Fireworks) */
+        .theme-celebration {
+            background-color: #0f172a;
+            background-image: radial-gradient(circle at 20% 30%, #fbbf24 1px, transparent 1px),
+                              radial-gradient(circle at 80% 10%, #f87171 1px, transparent 1px),
+                              radial-gradient(circle at 50% 50%, #60a5fa 1.5px, transparent 1.5px),
+                              radial-gradient(circle at 10% 80%, #a78bfa 1px, transparent 1px),
+                              radial-gradient(circle at 90% 90%, #34d399 1px, transparent 1px);
+            background-size: 60px 60px, 80px 80px, 100px 100px, 70px 70px, 90px 90px;
+        }
+
+        /* Tema Zen (Nature) */
+        .theme-zen {
+            background-color: #ecfdf5;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%2310b981' fill-opacity='0.15' d='M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C22,3 17,8 17,8Z'/%3E%3C/svg%3E");
+            background-size: 50px 50px;
+        }
+
+        /* Tema Cyber (Tech) */
+        .theme-tech {
+            background-color: #020617;
+            background-image: linear-gradient(to right, rgba(56, 189, 248, 0.1) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(56, 189, 248, 0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        /* Tema Galaxy (Space) */
+        .theme-galaxy {
+            background-color: #1e1b4b;
+            background-image: radial-gradient(white, rgba(255,255,255,.2) 2px, transparent 40px),
+                              radial-gradient(white, rgba(255,255,255,.15) 1px, transparent 30px),
+                              radial-gradient(white, rgba(255,255,255,.1) 2px, transparent 40px);
+            background-size: 250px 250px, 150px 150px, 350px 350px;
+            background-position: 0 0, 40px 60px, 130px 270px;
+        }
+
+        /* Tema Paper (Vintage) */
+        .theme-paper {
+            background-color: #fefce8;
+            background-image: linear-gradient(#e5e7eb 1px, transparent 1px);
+            background-size: 100% 28px;
+            border-left: 3px solid #f87171 !important;
+        }
+
         .glass-panel {
             background: rgba(255, 255, 255, 0.7);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.5);
         }
 
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 10px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8;
-        }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 <script type="importmap">
 {
@@ -91,14 +134,14 @@
     "react": "https://esm.sh/react@19.0.0",
     "react/": "https://esm.sh/react@19.0.0/",
     "react-dom": "https://esm.sh/react-dom@19.0.0",
-    "react-dom/": "https://esm.sh/react-dom@19.0.0/",
     "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
     "@google/genai": "https://esm.sh/@google/genai@1.3.0",
     "html2canvas": "https://esm.sh/html2canvas@1.4.1",
-    "vite": "https://esm.sh/vite@^7.3.0",
-    "path": "https://esm.sh/path@^0.12.7",
     "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "url": "https://esm.sh/url@^0.11.4"
+    "vite": "https://esm.sh/vite@^7.3.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "url": "https://esm.sh/url@^0.11.4",
+    "path": "https://esm.sh/path@^0.12.7"
   }
 }
 </script>

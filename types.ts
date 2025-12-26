@@ -5,7 +5,13 @@ export enum NoteColor {
   GREEN = 'bg-green-200',
   PINK = 'bg-pink-200',
   PURPLE = 'bg-purple-200',
-  ORANGE = 'bg-orange-200'
+  ORANGE = 'bg-orange-200',
+  HEARTS = 'theme-hearts',
+  CELEBRATION = 'theme-celebration',
+  ZEN = 'theme-zen',
+  TECH = 'theme-tech',
+  GALAXY = 'theme-galaxy',
+  PAPER = 'theme-paper'
 }
 
 export enum Language {
