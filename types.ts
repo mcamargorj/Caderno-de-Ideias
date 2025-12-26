@@ -25,6 +25,7 @@ export interface Note {
   content: string;
   color: NoteColor;
   date?: string; // Formato YYYY-MM-DD
+  time?: string; // Formato HH:mm
   createdAt: number;
   updatedAt: number;
 }

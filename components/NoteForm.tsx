@@ -16,6 +16,7 @@ const formTranslations = {
     newTitle: "Novo Insight",
     labelTitle: "Título",
     labelDate: "Data (Opcional)",
+    labelTime: "Hora",
     labelContent: "O que está pensando?",
     labelColor: "Estilo do Card",
     placeholderTitle: "Ex: Ideia Brilhante",
@@ -30,6 +31,7 @@ const formTranslations = {
     newTitle: "New Insight",
     labelTitle: "Title",
     labelDate: "Date (Optional)",
+    labelTime: "Time",
     labelContent: "What's on your mind?",
     labelColor: "Card Style",
     placeholderTitle: "Ex: Brilliant Idea",
@@ -46,6 +48,7 @@ export const NoteForm: React.FC<NoteFormProps> = ({ note, language, onSave, onCa
   const [content, setContent] = useState(note?.content || '');
   const [color, setColor] = useState<NoteColor>(note?.color || NoteColor.YELLOW);
   const [date, setDate] = useState(note?.date || '');
+  const [time, setTime] = useState(note?.time || '');
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [viewDate, setViewDate] = useState(new Date());
   
@@ -58,11 +61,11 @@ export const NoteForm: React.FC<NoteFormProps> = ({ note, language, onSave, onCa
       setContent(note.content);
       setColor(note.color);
       setDate(note.date || '');
+      setTime(note.time || '');
       if (note.date) setViewDate(new Date(note.date + 'T12:00:00'));
     }
   }, [note]);
 
-  // Fechar calendário ao clicar fora
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
@@ -76,10 +79,9 @@ export const NoteForm: React.FC<NoteFormProps> = ({ note, language, onSave, onCa
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim()) return;
-    onSave({ title, content, color, date: date || undefined });
+    onSave({ title, content, color, date: date || undefined, time: time || undefined });
   };
 
-  // Lógica do Calendário
   const daysInMonth = (month: number, year: number) => new Date(year, month + 1, 0).getDate();
   const firstDayOfMonth = (month: number, year: number) => new Date(year, month, 1).getDay();
 
@@ -97,6 +99,7 @@ export const NoteForm: React.FC<NoteFormProps> = ({ note, language, onSave, onCa
 
   const clearDate = () => {
     setDate('');
+    setTime('');
     setIsDatePickerOpen(false);
   };
 
@@ -116,12 +119,10 @@ export const NoteForm: React.FC<NoteFormProps> = ({ note, language, onSave, onCa
     const startDay = firstDayOfMonth(month, year);
     const days = [];
 
-    // Células vazias para o início do mês
     for (let i = 0; i < startDay; i++) {
       days.push(<div key={`empty-${i}`} className="h-9 w-9"></div>);
     }
 
-    // Dias do mês
     for (let d = 1; d <= totalDays; d++) {
       const isSelected = date === `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const isToday = new Date().toDateString() === new Date(year, month, d).toDateString();
@@ -193,18 +194,18 @@ export const NoteForm: React.FC<NoteFormProps> = ({ note, language, onSave, onCa
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto">
+          <div>
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">{ft.labelTitle}</label>
+            <input 
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={ft.placeholderTitle}
+              className="w-full px-5 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all font-semibold text-slate-900 placeholder:text-slate-400"
+            />
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex-1">
-              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">{ft.labelTitle}</label>
-              <input 
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder={ft.placeholderTitle}
-                className="w-full px-5 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all font-semibold text-slate-900 placeholder:text-slate-400"
-              />
-            </div>
-            
             <div className="relative" ref={datePickerRef}>
               <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">{ft.labelDate}</label>
               <button 
@@ -217,13 +218,21 @@ export const NoteForm: React.FC<NoteFormProps> = ({ note, language, onSave, onCa
                 </span>
                 <i className={`fas fa-calendar-alt ${date ? 'text-indigo-500' : 'text-gray-300'}`}></i>
               </button>
-
-              {/* Date Picker Popover */}
               {isDatePickerOpen && (
                 <div className="absolute top-full left-0 mt-2 w-full bg-white rounded-2xl shadow-2xl border border-gray-100 z-[70] animate-in zoom-in-95 fade-in duration-200 origin-top">
                   {renderCalendar()}
                 </div>
               )}
+            </div>
+
+            <div className={`transition-all duration-300 ${date ? 'opacity-100 translate-y-0' : 'opacity-40 pointer-events-none'}`}>
+              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">{ft.labelTime}</label>
+              <input 
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                className="w-full px-5 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all font-semibold text-slate-900"
+              />
             </div>
           </div>
 

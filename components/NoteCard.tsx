@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { Note, Language, NoteColor } from '../types';
 import { Button } from './Button';
@@ -20,7 +21,6 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
   const [error, setError] = useState<string | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // Detecção de temas escuros
   const isDarkTheme = [NoteColor.CELEBRATION, NoteColor.TECH, NoteColor.GALAXY].includes(note.color);
   
   const textColor = isDarkTheme ? 'text-white' : 'text-gray-800';
@@ -31,14 +31,12 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
   const handleEnhance = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isEnhancing) return;
-    
     setIsEnhancing(true);
     setError(null);
     try {
       const improved = await geminiService.enhanceNote(note.content, language);
       onUpdate(note.id, { content: improved });
     } catch (err: any) {
-      console.error("Erro na UI:", err);
       setError(language === Language.PT ? "Falha na IA." : "AI Failed.");
       setTimeout(() => setError(null), 3000);
     } finally {
@@ -49,7 +47,6 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
   const handleSpeak = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isSpeaking) return;
-
     setIsSpeaking(true);
     try {
       await geminiService.speak(note.content, language);
@@ -60,124 +57,73 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
     }
   };
 
-  const getFormattedData = () => {
-    const formattedTargetDate = note.date ? new Date(note.date + 'T00:00:00').toLocaleDateString(language, {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    }) : null;
+  const handleAddToCalendar = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!note.date) return;
 
-    const titleStr = note.title ? `[${note.title.toUpperCase()}]` : `[INSIGHT]`;
-    const dateStr = formattedTargetDate ? `📅 Data: ${formattedTargetDate}` : '';
+    const title = encodeURIComponent(note.title || 'Insight');
+    const details = encodeURIComponent(note.content);
     
-    return {
-      titleStr,
-      dateStr,
-      fullText: `${titleStr}\n${dateStr ? dateStr + '\n' : ''}---\n${note.content}\n---\nEnviado via Caderno de Insights`
-    };
+    // Formatar data para o Google: YYYYMMDDTHHmmSSZ
+    const datePart = note.date.replace(/-/g, '');
+    const timePart = (note.time || '09:00').replace(/:/g, '') + '00';
+    const startDateTime = `${datePart}T${timePart}`;
+    
+    // Adicionar 1 hora para o fim
+    const endHour = parseInt((note.time || '09:00').split(':')[0]) + 1;
+    const endDateTime = `${datePart}T${String(endHour).padStart(2, '0')}${timePart.substring(2)}`;
+
+    const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startDateTime}/${endDateTime}&details=${details}`;
+    window.open(url, '_blank');
   };
 
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const { fullText } = getFormattedData();
-    
+    const formattedDate = note.date ? new Date(note.date + 'T00:00:00').toLocaleDateString(language) : '';
+    const fullText = `[${note.title.toUpperCase()}]\n${formattedDate} ${note.time || ''}\n---\n${note.content}`;
     try {
       await navigator.clipboard.writeText(fullText);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
-    } catch (err) {
-      console.error("Erro ao copiar:", err);
-    }
+    } catch (err) {}
   };
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isSharing) return;
     setIsSharing(true);
-
     try {
       if (cardRef.current) {
         const tempId = `share-target-${note.id}`;
         cardRef.current.setAttribute('data-share-id', tempId);
-
         const canvas = await html2canvas(cardRef.current, {
-          backgroundColor: isDarkTheme ? (note.color === NoteColor.TECH ? '#020617' : note.color === NoteColor.GALAXY ? '#1e1b4b' : '#0f172a') : (note.color === NoteColor.PAPER ? '#fefce8' : null),
+          backgroundColor: isDarkTheme ? '#0f172a' : '#ffffff',
           scale: 3, 
-          logging: false,
           useCORS: true,
-          allowTaint: true,
-          scrollY: -window.scrollY,
-          scrollX: -window.scrollX,
           onclone: (clonedDoc) => {
             const clonedCard = clonedDoc.querySelector(`[data-share-id="${tempId}"]`) as HTMLElement;
             if (clonedCard) {
-              clonedCard.style.overflow = 'visible';
-              clonedCard.style.transform = 'none';
-              
-              // OCULTAR ÍCONES E BOTÃO IA NA IMAGEM
-              const actionIcons = clonedCard.querySelector('.action-icons-container') as HTMLElement;
-              if (actionIcons) actionIcons.style.display = 'none';
-              
-              const aiButton = clonedCard.querySelector('.ai-button-container') as HTMLElement;
-              if (aiButton) aiButton.style.display = 'none';
-
-              const titleEl = clonedCard.querySelector('h3');
-              if (titleEl) {
-                titleEl.classList.remove('truncate');
-                titleEl.style.overflow = 'visible';
-                titleEl.style.whiteSpace = 'normal';
-                titleEl.style.display = 'block';
-                titleEl.style.lineHeight = '1.4';
-                titleEl.style.paddingBottom = '10px';
-                titleEl.style.height = 'auto';
-              }
-
-              const contentEl = clonedCard.querySelector('p');
-              if (contentEl) {
-                contentEl.classList.remove('line-clamp-6');
-                contentEl.style.overflow = 'visible';
-              }
+              const icons = clonedCard.querySelector('.action-icons-container') as HTMLElement;
+              if (icons) icons.style.display = 'none';
+              const aiBtn = clonedCard.querySelector('.ai-button-container') as HTMLElement;
+              if (aiBtn) aiBtn.style.display = 'none';
             }
           }
         });
-
         cardRef.current.removeAttribute('data-share-id');
-
         const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
-        
-        if (blob && navigator.canShare && navigator.canShare({ files: [new File([blob], 'insight.png', { type: 'image/png' })] })) {
-          const file = new File([blob], `insight-${note.id.substring(0, 5)}.png`, { type: 'image/png' });
-          await navigator.share({
-            files: [file],
-            title: note.title || 'Insight',
-            text: note.content.substring(0, 50) + '...'
-          });
-        } else {
-          const { fullText } = getFormattedData();
-          if (navigator.share) {
-            await navigator.share({ title: note.title || 'Insight', text: fullText });
-          } else {
-            handleCopy(e);
-          }
+        if (blob && navigator.share) {
+          const file = new File([blob], 'insight.png', { type: 'image/png' });
+          await navigator.share({ files: [file], title: note.title });
         }
       }
-    } catch (err) {
-      if ((err as Error).name !== 'AbortError') console.error("Erro ao compartilhar:", err);
     } finally {
       setIsSharing(false);
     }
   };
 
-  const formattedUpdateDate = new Date(note.updatedAt).toLocaleDateString(language, {
-    day: '2-digit',
-    month: 'short'
-  });
-
-  const formattedTargetDate = note.date ? new Date(note.date + 'T00:00:00').toLocaleDateString(language, {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric'
-  }) : null;
+  const formattedUpdateDate = new Date(note.updatedAt).toLocaleDateString(language, { day: '2-digit', month: 'short' });
+  const formattedTargetDate = note.date ? new Date(note.date + 'T00:00:00').toLocaleDateString(language, { day: '2-digit', month: 'short', year: 'numeric' }) : null;
 
   return (
     <div 
@@ -185,43 +131,46 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
       className={`sticky-note w-full aspect-square ${note.color} p-6 shadow-lg relative flex flex-col cursor-pointer border border-black/5 rounded-sm overflow-hidden`}
       onClick={() => onEdit(note)}
     >
-      {/* Decorative Tape */}
       {!isDarkTheme && note.color !== NoteColor.PAPER && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-16 h-8 bg-white/30 rotate-1 pointer-events-none backdrop-blur-sm"></div>
       )}
       
-      {/* Top Header Row (Date & Actions) */}
       <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center">
+        <div className="flex flex-col gap-1">
           {note.date && (
             <div className={`flex items-center gap-1.5 px-2 py-0.5 ${isDarkTheme ? 'bg-white/10 text-white' : 'bg-black/5 text-gray-600'} rounded text-[9px] font-bold uppercase tracking-tighter`}>
               <i className="far fa-calendar-check text-[10px]"></i>
               {formattedTargetDate}
+              {note.time && (
+                <span className="ml-1 border-l border-current pl-1.5 flex items-center gap-1">
+                  <i className="far fa-clock text-[8px]"></i> {note.time}
+                </span>
+              )}
             </div>
           )}
         </div>
 
-        {/* Action Icons - Moved UP and to the Right */}
         <div className="action-icons-container flex gap-0.5 md:gap-1">
+          {note.date && (
+            <button onClick={handleAddToCalendar} title="Lembrete / Calendário" className={`w-7 h-7 flex items-center justify-center rounded-full transition-all hover:bg-black/10 ${iconColor}`}>
+              <i className="fas fa-bell text-xs"></i>
+            </button>
+          )}
           <button onClick={handleSpeak} title="Ouvir" className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${isSpeaking ? 'bg-indigo-500 text-white' : `hover:bg-black/10 ${iconColor}`}`}>
             <i className={`fas ${isSpeaking ? 'fa-volume-up animate-pulse' : 'fa-volume-low'} text-xs`}></i>
           </button>
-          
-          <button onClick={handleCopy} title="Copiar Tudo" className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${isCopied ? 'bg-green-500 text-white' : `hover:bg-black/10 ${iconColor}`}`}>
+          <button onClick={handleCopy} title="Copiar" className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${isCopied ? 'bg-green-500 text-white' : `hover:bg-black/10 ${iconColor}`}`}>
             <i className={`fas ${isCopied ? 'fa-check' : 'fa-copy'} text-xs`}></i>
           </button>
-
-          <button onClick={handleShare} title="Compartilhar Imagem" disabled={isSharing} className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${isSharing ? 'bg-indigo-500 text-white' : `hover:bg-black/10 ${iconColor}`}`}>
+          <button onClick={handleShare} title="Compartilhar" className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${isSharing ? 'bg-indigo-500 text-white' : `hover:bg-black/10 ${iconColor}`}`}>
             <i className={`fas ${isSharing ? 'fa-spinner fa-spin' : 'fa-share-nodes'} text-xs`}></i>
           </button>
-          
-          <button onClick={(e) => { e.stopPropagation(); onDelete(note.id); }} title="Excluir" className={`w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-500 hover:text-white ${isDarkTheme ? 'text-gray-500' : 'text-gray-400'} transition-all`}>
+          <button onClick={(e) => { e.stopPropagation(); onDelete(note.id); }} className={`w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-500 hover:text-white ${isDarkTheme ? 'text-gray-500' : 'text-gray-400'} transition-all`}>
             <i className="fas fa-trash-can text-xs"></i>
           </button>
         </div>
       </div>
 
-      {/* Title - Positioned "below the vision" of top elements */}
       <div className="mb-2">
         <h3 className={`text-xl font-black ${textColor} leading-[1.2] tracking-tight`}>
           {note.title || (language === Language.PT ? 'Insight' : 'Insight')}
@@ -234,18 +183,9 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
 
       <div className="mt-4 flex flex-col gap-2">
         <div className={`flex justify-between items-center text-[10px] ${metaTextColor} font-bold border-t ${isDarkTheme ? 'border-white/10' : 'border-black/10'} pt-3 uppercase tracking-wider`}>
-          <span className={error ? 'text-red-600 animate-pulse' : ''}>
-            {error || (language === Language.PT ? `Atu: ${formattedUpdateDate}` : `Upd: ${formattedUpdateDate}`)}
-          </span>
-          
-          <div className="ai-button-container flex gap-2">
-             <Button 
-                variant="ghost" 
-                size="sm" 
-                className={`h-7 px-3 text-[10px] font-black rounded-lg transition-transform active:scale-95 ${isEnhancing ? 'bg-indigo-600 text-white' : isDarkTheme ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-black/5 hover:bg-black/10 text-slate-700'}`}
-                onClick={handleEnhance}
-                isLoading={isEnhancing}
-              >
+          <span>{error || (language === Language.PT ? `Atu: ${formattedUpdateDate}` : `Upd: ${formattedUpdateDate}`)}</span>
+          <div className="ai-button-container">
+             <Button variant="ghost" size="sm" className={`h-7 px-3 text-[10px] font-black rounded-lg transition-transform active:scale-95 ${isEnhancing ? 'bg-indigo-600 text-white' : isDarkTheme ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-black/5 hover:bg-black/10 text-slate-700'}`} onClick={handleEnhance} isLoading={isEnhancing}>
                 {isEnhancing ? '...' : <><i className="fas fa-wand-magic-sparkles mr-1"></i> IA</>}
               </Button>
           </div>
