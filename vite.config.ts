@@ -1,3 +1,4 @@
+
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { defineConfig, loadEnv } from 'vite';
@@ -7,8 +8,9 @@ import react from '@vitejs/plugin-react';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(({ mode }) => {
-    // Carrega variáveis de ambiente do arquivo .env sem necessidade de prefixo VITE_
+    // Carrega variáveis de ambiente do arquivo .env ou do ambiente da Vercel
     const env = loadEnv(mode, '.', '');
+    
     return {
       server: {
         port: 3000,
@@ -16,8 +18,10 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       define: {
-        // Garante que o código cliente acesse a chave via process.env.API_KEY
         'process.env.API_KEY': JSON.stringify(env.API_KEY),
+        // Mapeia tanto nomes genéricos quanto os nomes específicos que o Vercel cria na integração Supabase
+        'process.env.SUPABASE_URL': JSON.stringify(env.NEXT_PUBLIC_SUPABASE_URL || env.SUPABASE_URL),
+        'process.env.SUPABASE_ANON_KEY': JSON.stringify(env.NEXT_PUBLIC_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY),
       },
       resolve: {
         alias: {
@@ -25,7 +29,7 @@ export default defineConfig(({ mode }) => {
         }
       },
       build: {
-        chunkSizeWarningLimit: 1000, // Aumenta o limite para 1MB para silenciar avisos
+        chunkSizeWarningLimit: 1000,
       }
     };
 });

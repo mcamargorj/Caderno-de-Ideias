@@ -19,15 +19,23 @@ export enum Language {
   EN = 'en-US'
 }
 
+export interface User {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+}
+
 export interface Note {
   id: string;
   title: string;
   content: string;
   color: NoteColor;
-  date?: string; // Formato YYYY-MM-DD
-  time?: string; // Formato HH:mm
+  date?: string; 
+  time?: string; 
   createdAt: number;
   updatedAt: number;
+  userId?: string; // ID do usuário para sincronização na nuvem
 }
 
 export interface StorageState {

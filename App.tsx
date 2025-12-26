@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Note, NoteColor, Language } from './types';
+import { Note, NoteColor, Language, User } from './types';
 import { storageService } from './services/dbService';
 import { NoteCard } from './components/NoteCard';
 import { NoteForm } from './components/NoteForm';
@@ -36,7 +36,11 @@ const translations = {
     deleteConfirm: "Deseja realmente excluir?",
     importSuccess: "Notas restauradas com sucesso!",
     filterByColor: "Filtrar por Cor",
-    clearFilter: "Limpar Filtro"
+    clearFilter: "Limpar Filtro",
+    connectGoogle: "CONECTAR COM GOOGLE",
+    signOut: "Sair da Conta",
+    syncStatus: "Sincronizado via Supabase",
+    migrating: "Sincronizando com a nuvem..."
   },
   [Language.EN]: {
     appTitle: "Insight",
@@ -66,7 +70,11 @@ const translations = {
     deleteConfirm: "Are you sure you want to delete?",
     importSuccess: "Notes restored successfully!",
     filterByColor: "Filter by Color",
-    clearFilter: "Clear Filter"
+    clearFilter: "Clear Filter",
+    connectGoogle: "CONNECT WITH GOOGLE",
+    signOut: "Sign Out",
+    syncStatus: "Synced via Supabase",
+    migrating: "Syncing with cloud..."
   }
 };
 
@@ -77,10 +85,12 @@ const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [dailyInsight, setDailyInsight] = useState("");
   const [filterColor, setFilterColor] = useState<NoteColor | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [language, setLanguage] = useState<Language>(Language.PT);
+  const [user, setUser] = useState<User | null>(null);
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [isLogoSpinning, setIsLogoSpinning] = useState(false);
   const notifiedNotesRef = useRef<Set<string>>(new Set());
@@ -94,23 +104,49 @@ const App: React.FC = () => {
   };
 
   const loadNotes = useCallback(() => {
-    const fetched = storageService.searchNotes(searchQuery);
-    setNotes(fetched);
-    setIsLoading(false);
-  }, [searchQuery]);
+    if (user) {
+      setIsSyncing(true);
+      return storageService.syncWithCloud(user.uid, (cloudNotes) => {
+        setNotes(cloudNotes);
+        setIsLoading(false);
+        setIsSyncing(false);
+      });
+    } else {
+      const fetched = storageService.getStorage().notes;
+      setNotes(fetched);
+      setIsLoading(false);
+      return () => {};
+    }
+  }, [user]);
 
   useEffect(() => {
     const storage = storageService.getStorage();
     if (storage.language) setLanguage(storage.language);
-    loadNotes();
+    
+    const unsubscribeAuth = storageService.onAuthStateChanged((loggedUser) => {
+      setUser(loggedUser);
+      if (loggedUser) {
+        const localNotes = storageService.getStorage().notes;
+        if (localNotes.length > 0) {
+          setIsSyncing(true);
+          storageService.migrateToCloud(loggedUser.uid).then(() => setIsSyncing(false));
+        }
+      }
+    });
+
     geminiService.getDailyInsight(storage.language || Language.PT).then(setDailyInsight);
     
-    // Proteção contra crash em navegadores mobile antigos ou sem HTTPS
     if (typeof window !== 'undefined' && 'Notification' in window) {
       if (Notification.permission === 'default') {
         Notification.requestPermission().catch(console.warn);
       }
     }
+    return () => { if (unsubscribeAuth) unsubscribeAuth(); };
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = loadNotes();
+    return () => { if (typeof unsubscribe === 'function') unsubscribe(); };
   }, [loadNotes]);
 
   useEffect(() => {
@@ -145,51 +181,41 @@ const App: React.FC = () => {
     geminiService.getDailyInsight(newLang).then(setDailyInsight);
   };
 
+  const handleLogin = async () => {
+    await storageService.signInWithGoogle();
+  };
+
+  const handleLogout = async () => {
+    await storageService.signOut();
+    setUser(null);
+  };
+
   const filteredNotes = useMemo(() => {
-    let result = notes;
+    let result = storageService.searchNotes(notes, searchQuery);
     if (filterColor) result = result.filter(n => n.color === filterColor);
     if (selectedDate) result = result.filter(n => n.date === selectedDate);
     return result;
-  }, [notes, filterColor, selectedDate]);
+  }, [notes, searchQuery, filterColor, selectedDate]);
 
-  const handleSaveNote = (data: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const handleSaveNote = async (data: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>) => {
     if (editingNote) {
-      storageService.updateNote(editingNote.id, data);
+      await storageService.updateNote(editingNote.id, data, user?.uid);
     } else {
-      storageService.createNote(data);
+      await storageService.createNote(data, user?.uid);
       triggerLogoSpin();
     }
     setEditingNote(undefined);
     setIsFormOpen(false);
-    loadNotes();
   };
 
   const handleUpdateNoteField = (id: string, updates: Partial<Note>) => {
-    storageService.updateNote(id, updates);
-    loadNotes();
+    storageService.updateNote(id, updates, user?.uid);
   };
 
   const handleDeleteNote = (id: string) => {
     if (confirm(t.deleteConfirm)) {
-      storageService.deleteNote(id);
-      loadNotes();
+      storageService.deleteNote(id, user?.uid);
     }
-  };
-
-  const handleExport = () => storageService.exportBackup();
-  const handleImportClick = () => fileInputRef.current?.click();
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const success = await storageService.importBackup(file);
-      if (success) {
-        alert(t.importSuccess);
-        loadNotes();
-        setIsSettingsOpen(false);
-      }
-    }
-    e.target.value = '';
   };
 
   const timelineDates = useMemo(() => {
@@ -224,6 +250,26 @@ const App: React.FC = () => {
           <button onClick={() => setIsSettingsOpen(true)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-indigo-600 transition-all">
             <i className="fas fa-gear"></i>
           </button>
+        </div>
+
+        {/* Perfil do Usuário */}
+        <div className="px-1">
+          {user ? (
+            <div className="flex items-center gap-3 p-3 bg-white/50 border border-indigo-100 rounded-2xl shadow-sm">
+              <img src={user.photoURL || ''} alt="User" className="w-10 h-10 rounded-full border-2 border-indigo-500" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-black text-gray-800 truncate uppercase leading-none">{user.displayName}</p>
+                <div className="flex items-center gap-1 mt-1">
+                  <i className="fas fa-bolt text-indigo-500 text-[8px]"></i>
+                  <p className="text-[8px] font-bold text-indigo-500 uppercase tracking-tighter">Supabase Sync</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <Button variant="secondary" className="w-full h-12 rounded-2xl text-[10px] font-black shadow-sm" onClick={handleLogin}>
+              <i className="fab fa-google mr-2 text-indigo-500"></i> {t.connectGoogle}
+            </Button>
+          )}
         </div>
 
         <nav className="flex flex-col gap-1.5">
@@ -274,9 +320,8 @@ const App: React.FC = () => {
               <button onClick={() => setIsSearchActive(!isSearchActive)} className="p-2 text-gray-500">
                 <i className={`fas ${isSearchActive ? 'fa-times' : 'fa-search'}`}></i>
               </button>
-              <button onClick={() => setIsSettingsOpen(true)} className="p-2 text-gray-500">
-                <i className="fas fa-gear"></i>
-              </button>
+              {user && <img src={user.photoURL || ''} className="w-8 h-8 rounded-full border border-indigo-200" onClick={() => setIsSettingsOpen(true)} />}
+              {!user && <button onClick={() => setIsSettingsOpen(true)} className="p-2 text-gray-500"><i className="fas fa-gear"></i></button>}
             </div>
           </div>
 
@@ -292,9 +337,15 @@ const App: React.FC = () => {
           </div>
         </header>
 
+        {/* STATUS DE SINCRONIZAÇÃO */}
+        {isSyncing && (
+          <div className="px-10 py-2 bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase flex items-center gap-2 animate-pulse">
+            <i className="fas fa-sync fa-spin"></i> {t.migrating}
+          </div>
+        )}
+
         {/* TIMELINE E FILTROS MOBILE */}
         <div className="px-6 md:px-10 pt-6 flex flex-col gap-6">
-          {/* Insight IA Mobile */}
           <div className="md:hidden p-5 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-[2rem] text-white shadow-xl shadow-indigo-100">
              <div className="flex items-center gap-2 mb-2">
                 <i className="fas fa-sparkles text-[10px] text-indigo-200"></i>
@@ -303,7 +354,6 @@ const App: React.FC = () => {
              <p className="text-xs font-bold leading-relaxed italic">"{dailyInsight || t.loading}"</p>
           </div>
 
-          {/* Timeline */}
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t.timeline}</h2>
@@ -317,25 +367,6 @@ const App: React.FC = () => {
                   <span className="text-[9px] font-black uppercase tracking-tighter opacity-70">{date.weekday}</span>
                   <span className="text-lg font-black">{date.day}</span>
                   {date.isToday && <span className={`w-1.5 h-1.5 rounded-full ${selectedDate === date.full ? 'bg-white' : 'bg-indigo-500'}`}></span>}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Filtro de Cores Mobile */}
-          <div className="md:hidden">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t.filterByColor}</p>
-              {filterColor && (
-                <button onClick={() => setFilterColor(null)} className="text-indigo-500 font-black text-[10px] uppercase">
-                  {t.clearFilter}
-                </button>
-              )}
-            </div>
-            <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide no-scrollbar -mx-1 px-1">
-               {Object.values(NoteColor).map(color => (
-                <button key={color} onClick={() => setFilterColor(filterColor === color ? null : color)} className={`flex-shrink-0 w-12 h-12 rounded-full shadow-md transition-all active:scale-90 border-2 flex items-center justify-center ${color} ${filterColor === color ? 'border-indigo-600 scale-110 shadow-lg' : 'border-transparent hover:scale-110'}`}>
-                  {filterColor === color && <i className={`fas fa-check text-xs ${['bg-yellow-200', 'bg-blue-200', 'bg-green-200', 'bg-pink-200', 'bg-purple-200', 'bg-orange-200', 'theme-zen', 'theme-paper'].includes(color) ? 'text-indigo-600' : 'text-white'}`}></i>}
                 </button>
               ))}
             </div>
@@ -389,6 +420,29 @@ const App: React.FC = () => {
               </div>
 
               <div className="space-y-10">
+                {/* Seção Cloud Supabase */}
+                <div>
+                  <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-5">Sincronização Cloud</label>
+                  {!user ? (
+                    <Button variant="secondary" className="w-full h-16 rounded-3xl text-sm font-black border-2 border-indigo-100 hover:border-indigo-300 shadow-sm" onClick={handleLogin}>
+                      <i className="fab fa-google mr-3 text-indigo-500 text-xl"></i> {t.connectGoogle}
+                    </Button>
+                  ) : (
+                    <div className="p-5 bg-indigo-50/50 border-2 border-indigo-100 rounded-3xl flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <img src={user.photoURL || ''} className="w-12 h-12 rounded-2xl border-2 border-indigo-500" />
+                        <div>
+                          <p className="text-sm font-black text-slate-800 uppercase leading-none">{user.displayName}</p>
+                          <p className="text-[10px] font-bold text-indigo-500 uppercase mt-1 tracking-widest">{t.syncStatus}</p>
+                        </div>
+                      </div>
+                      <button onClick={handleLogout} className="text-red-500 hover:text-red-700 p-3 transition-colors">
+                        <i className="fas fa-power-off"></i>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-5">{t.language}</label>
                   <div className="grid grid-cols-2 gap-4">
@@ -404,21 +458,13 @@ const App: React.FC = () => {
                 <div>
                   <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-5">{t.security}</label>
                   <div className="flex flex-col gap-4">
-                    <button onClick={handleExport} className="w-full flex items-center justify-between px-8 py-5 bg-gray-50 hover:bg-indigo-50 rounded-3xl transition-all group border-2 border-transparent hover:border-indigo-100">
+                    <button onClick={() => storageService.exportBackup()} className="w-full flex items-center justify-between px-8 py-5 bg-gray-50 hover:bg-indigo-50 rounded-3xl transition-all group border-2 border-transparent hover:border-indigo-100">
                       <div className="flex items-center gap-5">
                         <i className="fas fa-file-export text-indigo-600 text-xl"></i>
                         <span className="font-black text-gray-700 text-sm uppercase tracking-wider">{t.export}</span>
                       </div>
                       <i className="fas fa-chevron-right text-gray-300 group-hover:text-indigo-400 transition-colors"></i>
                     </button>
-                    <button onClick={handleImportClick} className="w-full flex items-center justify-between px-8 py-5 bg-gray-50 hover:bg-indigo-50 rounded-3xl transition-all group border-2 border-transparent hover:border-indigo-100">
-                      <div className="flex items-center gap-5">
-                        <i className="fas fa-file-import text-indigo-600 text-xl"></i>
-                        <span className="font-black text-gray-700 text-sm uppercase tracking-wider">{t.import}</span>
-                      </div>
-                      <i className="fas fa-chevron-right text-gray-300 group-hover:text-indigo-400 transition-colors"></i>
-                    </button>
-                    <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" />
                   </div>
                 </div>
               </div>
