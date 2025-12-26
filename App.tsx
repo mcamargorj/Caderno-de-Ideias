@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Note, NoteColor, Language } from './types';
 import { storageService } from './services/dbService';
@@ -35,7 +34,9 @@ const translations = {
     close: "Fechar",
     loading: "Carregando...",
     deleteConfirm: "Deseja realmente excluir?",
-    importSuccess: "Notas restauradas com sucesso!"
+    importSuccess: "Notas restauradas com sucesso!",
+    filterByColor: "Filtrar por Cor",
+    clearFilter: "Limpar"
   },
   [Language.EN]: {
     appTitle: "Insight",
@@ -63,7 +64,9 @@ const translations = {
     close: "Close",
     loading: "Loading...",
     deleteConfirm: "Are you sure you want to delete?",
-    importSuccess: "Notes restored successfully!"
+    importSuccess: "Notes restored successfully!",
+    filterByColor: "Filter by Color",
+    clearFilter: "Clear"
   }
 };
 
@@ -211,7 +214,14 @@ const App: React.FC = () => {
         </nav>
 
         <div>
-           <p className="text-[10px] font-bold text-gray-400 uppercase mb-3 px-3">Filter by Color</p>
+           <div className="flex justify-between items-center px-3 mb-3">
+             <p className="text-[10px] font-bold text-gray-400 uppercase">{t.filterByColor}</p>
+             {filterColor && (
+               <button onClick={() => setFilterColor(null)} className="text-[9px] font-black text-indigo-500 hover:text-indigo-700 uppercase tracking-tighter transition-colors">
+                 {t.clearFilter}
+               </button>
+             )}
+           </div>
            <div className="grid grid-cols-4 gap-2 px-3">
             {Object.values(NoteColor).map(color => (
               <button
@@ -289,10 +299,31 @@ const App: React.FC = () => {
               </button>
             ))}
           </div>
+
+          {/* Filtro por Cores Mobile */}
+          <div className="md:hidden flex flex-col mt-2">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">{t.filterByColor}</span>
+              {filterColor && (
+                 <button onClick={() => setFilterColor(null)} className="text-[10px] font-black text-indigo-500 uppercase tracking-tighter">
+                   {t.clearFilter}
+                 </button>
+              )}
+            </div>
+            <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
+              {Object.values(NoteColor).map(color => (
+                <button
+                  key={color}
+                  onClick={() => setFilterColor(filterColor === color ? null : color)}
+                  className={`flex-shrink-0 w-8 h-8 rounded-full border-2 shadow-sm transition-all ${color} ${filterColor === color ? 'border-indigo-600 scale-110' : 'border-transparent'}`}
+                />
+              ))}
+            </div>
+          </div>
         </div>
 
-        <div className="md:hidden px-6 mt-2">
-          <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
+        <div className="md:hidden px-6 mt-4">
+          <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 shadow-sm shadow-indigo-50/50">
             <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">{t.todayInsight}</p>
             <p className="text-xs text-indigo-900 leading-tight italic">"{dailyInsight || t.loading}"</p>
           </div>
