@@ -11,7 +11,7 @@ const translations = {
   [Language.PT]: {
     appTitle: "Caderno de",
     appSubtitle: "INSIGHTS",
-    searchPlaceholder: "Pesquisar insights ou tarefas...",
+    searchPlaceholder: "Pesquisar insights...",
     newNote: "NOVA NOTA",
     timeline: "Linha do Tempo",
     viewAll: "Ver Tudo",
@@ -36,12 +36,12 @@ const translations = {
     deleteConfirm: "Deseja realmente excluir?",
     importSuccess: "Notas restauradas com sucesso!",
     filterByColor: "Filtrar por Cor",
-    clearFilter: "Limpar"
+    clearFilter: "Limpar Filtro"
   },
   [Language.EN]: {
     appTitle: "Insight",
     appSubtitle: "NOTEBOOK",
-    searchPlaceholder: "Search insights or tasks...",
+    searchPlaceholder: "Search insights...",
     newNote: "NEW NOTE",
     timeline: "Timeline",
     viewAll: "View All",
@@ -66,7 +66,7 @@ const translations = {
     deleteConfirm: "Are you sure you want to delete?",
     importSuccess: "Notes restored successfully!",
     filterByColor: "Filter by Color",
-    clearFilter: "Clear"
+    clearFilter: "Clear Filter"
   }
 };
 
@@ -99,10 +99,8 @@ const App: React.FC = () => {
   }, [searchQuery]);
 
   useEffect(() => {
-    // Carregar idioma salvo
     const storage = storageService.getStorage();
     if (storage.language) setLanguage(storage.language);
-    
     loadNotes();
     geminiService.getDailyInsight(storage.language || Language.PT).then(setDailyInsight);
   }, [loadNotes]);
@@ -213,22 +211,28 @@ const App: React.FC = () => {
           </button>
         </nav>
 
-        <div>
+        <div className="mt-4">
            <div className="flex justify-between items-center px-3 mb-3">
-             <p className="text-[10px] font-bold text-gray-400 uppercase">{t.filterByColor}</p>
+             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t.filterByColor}</p>
              {filterColor && (
-               <button onClick={() => setFilterColor(null)} className="text-[9px] font-black text-indigo-500 hover:text-indigo-700 uppercase tracking-tighter transition-colors">
-                 {t.clearFilter}
+               <button 
+                onClick={() => setFilterColor(null)} 
+                title={t.clearFilter}
+                className="text-indigo-500 hover:text-indigo-700 transition-all animate-in fade-in zoom-in duration-300"
+               >
+                 <i className="fas fa-filter-circle-xmark text-sm"></i>
                </button>
              )}
            </div>
-           <div className="grid grid-cols-4 gap-2 px-3">
+           <div className="grid grid-cols-4 gap-2.5 px-3">
             {Object.values(NoteColor).map(color => (
               <button
                 key={color}
                 onClick={() => setFilterColor(filterColor === color ? null : color)}
-                className={`w-7 h-7 rounded-full shadow-sm transition-transform active:scale-90 border-2 ${color} ${filterColor === color ? 'border-indigo-600 scale-110 shadow-indigo-100' : 'border-transparent hover:scale-110'}`}
-              />
+                className={`w-7 h-7 rounded-full shadow-sm transition-all active:scale-90 border-2 flex items-center justify-center ${color} ${filterColor === color ? 'border-indigo-600 scale-110 shadow-lg shadow-indigo-100' : 'border-transparent hover:scale-110'}`}
+              >
+                {filterColor === color && <i className={`fas fa-check text-[10px] ${['bg-yellow-200', 'bg-blue-200', 'bg-green-200', 'bg-pink-200', 'bg-purple-200', 'bg-orange-200', 'theme-zen', 'theme-paper'].includes(color) ? 'text-indigo-600' : 'text-white'}`}></i>}
+              </button>
             ))}
           </div>
         </div>
@@ -278,7 +282,7 @@ const App: React.FC = () => {
         <div className="px-6 md:px-10 pt-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">{t.timeline}</h2>
-            <button onClick={() => setSelectedDate(null)} className={`text-[10px] font-bold uppercase ${!selectedDate ? 'text-indigo-600' : 'text-gray-400'}`}>
+            <button onClick={() => setSelectedDate(null)} className={`text-[10px] font-bold uppercase transition-colors ${!selectedDate ? 'text-indigo-600' : 'text-gray-400'}`}>
               {t.viewAll}
             </button>
           </div>
@@ -300,23 +304,28 @@ const App: React.FC = () => {
             ))}
           </div>
 
-          {/* Filtro por Cores Mobile */}
+          {/* Filtro por Cores Mobile (Visual Story/Carousel) */}
           <div className="md:hidden flex flex-col mt-2">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">{t.filterByColor}</span>
+            <div className="flex items-center justify-between mb-3 px-1">
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t.filterByColor}</span>
+            </div>
+            <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar px-1 items-center">
               {filterColor && (
-                 <button onClick={() => setFilterColor(null)} className="text-[10px] font-black text-indigo-500 uppercase tracking-tighter">
-                   {t.clearFilter}
+                 <button 
+                  onClick={() => setFilterColor(null)} 
+                  className="flex-shrink-0 w-9 h-9 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center shadow-sm animate-in fade-in slide-in-from-left-2 duration-300"
+                >
+                   <i className="fas fa-filter-circle-xmark"></i>
                  </button>
               )}
-            </div>
-            <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
               {Object.values(NoteColor).map(color => (
                 <button
                   key={color}
                   onClick={() => setFilterColor(filterColor === color ? null : color)}
-                  className={`flex-shrink-0 w-8 h-8 rounded-full border-2 shadow-sm transition-all ${color} ${filterColor === color ? 'border-indigo-600 scale-110' : 'border-transparent'}`}
-                />
+                  className={`flex-shrink-0 w-9 h-9 rounded-full border-2 shadow-sm transition-all flex items-center justify-center ${color} ${filterColor === color ? 'border-indigo-600 scale-110 shadow-md' : 'border-transparent'}`}
+                >
+                   {filterColor === color && <i className={`fas fa-check text-[10px] ${['bg-yellow-200', 'bg-blue-200', 'bg-green-200', 'bg-pink-200', 'bg-purple-200', 'bg-orange-200', 'theme-zen', 'theme-paper'].includes(color) ? 'text-indigo-600' : 'text-white'}`}></i>}
+                </button>
               ))}
             </div>
           </div>
@@ -324,7 +333,10 @@ const App: React.FC = () => {
 
         <div className="md:hidden px-6 mt-4">
           <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 shadow-sm shadow-indigo-50/50">
-            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">{t.todayInsight}</p>
+            <div className="flex items-center gap-2 mb-1">
+              <i className="fas fa-wand-magic-sparkles text-indigo-500 text-[10px]"></i>
+              <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">{t.todayInsight}</p>
+            </div>
             <p className="text-xs text-indigo-900 leading-tight italic">"{dailyInsight || t.loading}"</p>
           </div>
         </div>
@@ -332,8 +344,8 @@ const App: React.FC = () => {
         <main className="flex-1 px-6 md:px-10 py-6">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-              <i className="fas fa-circle-notch fa-spin text-4xl mb-4"></i>
-              <p className="font-bold uppercase tracking-widest">{t.loading}</p>
+              <i className="fas fa-circle-notch fa-spin text-4xl mb-4 text-indigo-400"></i>
+              <p className="font-bold uppercase tracking-widest text-xs">{t.loading}</p>
             </div>
           ) : filteredNotes.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6 md:gap-8 animate-in fade-in duration-700">
@@ -350,7 +362,7 @@ const App: React.FC = () => {
             </div>
           ) : (
             <div className="h-[40vh] flex items-center justify-center">
-              <div className="text-center max-w-xs">
+              <div className="text-center max-w-xs animate-in fade-in zoom-in duration-500">
                 <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mx-auto mb-4">
                   <i className="fas fa-calendar-xmark text-2xl"></i>
                 </div>
@@ -383,7 +395,6 @@ const App: React.FC = () => {
               </div>
 
               <div className="space-y-8">
-                {/* Language Section */}
                 <div>
                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">{t.language}</label>
                   <div className="grid grid-cols-2 gap-3">
@@ -404,14 +415,10 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Security Section */}
                 <div>
                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">{t.security}</label>
                   <div className="flex flex-col gap-3">
-                    <button 
-                      onClick={handleExport}
-                      className="w-full flex items-center justify-between px-6 py-4 bg-gray-50 hover:bg-indigo-50 rounded-2xl transition-colors group"
-                    >
+                    <button onClick={handleExport} className="w-full flex items-center justify-between px-6 py-4 bg-gray-50 hover:bg-indigo-50 rounded-2xl transition-colors group">
                       <div className="flex items-center gap-4">
                         <i className="fas fa-file-export text-indigo-600 text-lg"></i>
                         <span className="font-bold text-gray-700 text-sm">{t.export}</span>
@@ -419,10 +426,7 @@ const App: React.FC = () => {
                       <i className="fas fa-chevron-right text-gray-300 group-hover:text-indigo-400 transition-colors"></i>
                     </button>
                     
-                    <button 
-                      onClick={handleImportClick}
-                      className="w-full flex items-center justify-between px-6 py-4 bg-gray-50 hover:bg-indigo-50 rounded-2xl transition-colors group"
-                    >
+                    <button onClick={handleImportClick} className="w-full flex items-center justify-between px-6 py-4 bg-gray-50 hover:bg-indigo-50 rounded-2xl transition-colors group">
                       <div className="flex items-center gap-4">
                         <i className="fas fa-file-import text-indigo-600 text-lg"></i>
                         <span className="font-bold text-gray-700 text-sm">{t.import}</span>
@@ -462,11 +466,11 @@ const App: React.FC = () => {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t px-6 py-3 flex items-center justify-around z-50">
         <button onClick={() => { setSelectedDate(null); setFilterColor(null); window.scrollTo({top: 0, behavior: 'smooth'}); }} className={`flex flex-col items-center gap-1 ${(!selectedDate && !filterColor) ? 'text-indigo-600' : 'text-gray-400'}`}>
           <i className="fas fa-home text-lg"></i>
-          <span className="text-[10px] font-bold">{t.home}</span>
+          <span className="text-[10px] font-bold tracking-tight">{t.home}</span>
         </button>
         <button onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])} className={`flex flex-col items-center gap-1 ${selectedDate === new Date().toISOString().split('T')[0] ? 'text-indigo-600' : 'text-gray-400'}`}>
           <i className="fas fa-calendar-check text-lg"></i>
-          <span className="text-[10px] font-bold">{t.today}</span>
+          <span className="text-[10px] font-bold tracking-tight">{t.today}</span>
         </button>
         <button onClick={() => setIsSettingsOpen(true)} className={`flex flex-col items-center gap-1 ${isSettingsOpen ? 'text-indigo-600' : 'text-gray-400'}`}>
           <i className="fas fa-gear text-lg"></i>
