@@ -105,14 +105,18 @@ const App: React.FC = () => {
     loadNotes();
     geminiService.getDailyInsight(storage.language || Language.PT).then(setDailyInsight);
     
-    if (Notification.permission === 'default') {
-      Notification.requestPermission();
+    // Proteção contra crash em navegadores mobile antigos ou sem HTTPS
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().catch(console.warn);
+      }
     }
   }, [loadNotes]);
 
-  // Sistema de Alarme
   useEffect(() => {
     const checkReminders = () => {
+      if (typeof window === 'undefined' || !('Notification' in window)) return;
+      
       const now = new Date();
       const nowDate = now.toISOString().split('T')[0];
       const nowTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -223,41 +227,44 @@ const App: React.FC = () => {
         </div>
 
         <nav className="flex flex-col gap-1.5">
-          <button onClick={() => { setFilterColor(null); setSelectedDate(null); }} className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all font-semibold text-sm ${(!filterColor && !selectedDate) ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}>
+          <button onClick={() => { setFilterColor(null); setSelectedDate(null); }} className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all font-black text-xs uppercase ${(!filterColor && !selectedDate) ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}>
             <i className="fas fa-layer-group"></i> {t.allInsights}
           </button>
-          <button onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])} className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all font-semibold text-sm ${selectedDate === new Date().toISOString().split('T')[0] ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}>
+          <button onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])} className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all font-black text-xs uppercase ${selectedDate === new Date().toISOString().split('T')[0] ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}>
             <i className="fas fa-calendar-day"></i> {t.planningToday}
           </button>
         </nav>
 
         <div className="mt-4">
-           <div className="flex justify-between items-center px-3 mb-3">
+           <div className="flex justify-between items-center px-3 mb-4">
              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t.filterByColor}</p>
              {filterColor && (
-               <button onClick={() => setFilterColor(null)} className="text-indigo-500 hover:text-indigo-700 transition-all animate-in fade-in zoom-in duration-300">
+               <button onClick={() => setFilterColor(null)} className="text-indigo-500 hover:text-indigo-700 transition-all">
                  <i className="fas fa-filter-circle-xmark text-sm"></i>
                </button>
              )}
            </div>
-           <div className="grid grid-cols-4 gap-2.5 px-3">
+           <div className="grid grid-cols-4 gap-3 px-3">
             {Object.values(NoteColor).map(color => (
-              <button key={color} onClick={() => setFilterColor(filterColor === color ? null : color)} className={`w-7 h-7 rounded-full shadow-sm transition-all active:scale-90 border-2 flex items-center justify-center ${color} ${filterColor === color ? 'border-indigo-600 scale-110 shadow-lg shadow-indigo-100' : 'border-transparent hover:scale-110'}`}>
+              <button key={color} onClick={() => setFilterColor(filterColor === color ? null : color)} className={`w-8 h-8 rounded-full shadow-sm transition-all active:scale-90 border-2 flex items-center justify-center ${color} ${filterColor === color ? 'border-indigo-600 scale-125 shadow-lg' : 'border-transparent hover:scale-110'}`}>
                 {filterColor === color && <i className={`fas fa-check text-[10px] ${['bg-yellow-200', 'bg-blue-200', 'bg-green-200', 'bg-pink-200', 'bg-purple-200', 'bg-orange-200', 'theme-zen', 'theme-paper'].includes(color) ? 'text-indigo-600' : 'text-white'}`}></i>}
               </button>
             ))}
           </div>
         </div>
 
-        <div className="mt-auto p-4 bg-indigo-600 rounded-2xl text-white shadow-xl">
-           <p className="text-[10px] font-bold opacity-80 uppercase mb-2">Insight AI</p>
-           <p className="text-xs font-medium leading-relaxed italic">"{dailyInsight || t.loading}"</p>
+        <div className="mt-auto p-5 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-3xl text-white shadow-xl shadow-indigo-100">
+           <div className="flex items-center gap-2 mb-3">
+             <i className="fas fa-sparkles text-indigo-200 text-xs"></i>
+             <p className="text-[10px] font-black opacity-80 uppercase tracking-widest">Insight AI</p>
+           </div>
+           <p className="text-xs font-bold leading-relaxed italic">"{dailyInsight || t.loading}"</p>
         </div>
       </aside>
 
       {/* CONTEÚDO PRINCIPAL */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="px-6 py-4 md:py-6 md:px-10 flex flex-col md:flex-row items-center justify-between gap-4 sticky top-0 z-30 bg-white/40 backdrop-blur-md border-b">
+        <header className="px-6 py-4 md:py-6 md:px-10 flex flex-col md:flex-row items-center justify-between gap-6 sticky top-0 z-30 bg-white/40 backdrop-blur-md border-b">
           <div className="flex items-center justify-between w-full md:hidden mb-2">
             <div className="flex items-center gap-2" onClick={triggerLogoSpin}>
               <img src="https://portalmschelp.pythonanywhere.com/static/images/site/img/logo.png" className="w-8 h-8 object-contain" alt="Logo" />
@@ -273,43 +280,43 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <div className={`flex-1 max-w-2xl w-full relative group ${!isSearchActive && 'hidden md:block'}`}>
-            <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-            <input type="text" placeholder={t.searchPlaceholder} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl shadow-sm focus:border-indigo-500 transition-all outline-none text-sm font-medium" />
+          <div className={`flex-1 max-w-3xl w-full relative group ${!isSearchActive && 'hidden md:block'}`}>
+            <i className="fas fa-search absolute left-5 top-1/2 -translate-y-1/2 text-gray-400"></i>
+            <input type="text" placeholder={t.searchPlaceholder} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-[1.5rem] shadow-sm focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 transition-all outline-none text-sm font-semibold" />
           </div>
 
           <div className="hidden md:flex items-center gap-4">
-            <Button variant="primary" className="rounded-2xl shadow-xl px-8 font-black text-sm h-12 uppercase" onClick={() => { setEditingNote(undefined); setIsFormOpen(true); }}>
+            <Button variant="primary" className="rounded-[1.5rem] shadow-xl px-10 font-black text-sm h-14 uppercase tracking-wider" onClick={() => { setEditingNote(undefined); setIsFormOpen(true); }}>
               <i className="fas fa-plus mr-3 text-xs"></i> {t.newNote}
             </Button>
           </div>
         </header>
 
         {/* TIMELINE E FILTROS MOBILE */}
-        <div className="px-6 md:px-10 pt-4 flex flex-col gap-4">
+        <div className="px-6 md:px-10 pt-6 flex flex-col gap-6">
           {/* Insight IA Mobile */}
-          <div className="md:hidden p-4 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-3xl text-white shadow-lg shadow-indigo-100 animate-in fade-in slide-in-from-top-2 duration-500">
-             <div className="flex items-center gap-2 mb-1.5">
+          <div className="md:hidden p-5 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-[2rem] text-white shadow-xl shadow-indigo-100">
+             <div className="flex items-center gap-2 mb-2">
                 <i className="fas fa-sparkles text-[10px] text-indigo-200"></i>
                 <p className="text-[10px] font-black uppercase tracking-widest opacity-80">{t.todayInsight}</p>
              </div>
-             <p className="text-xs font-semibold leading-relaxed italic">"{dailyInsight || t.loading}"</p>
+             <p className="text-xs font-bold leading-relaxed italic">"{dailyInsight || t.loading}"</p>
           </div>
 
           {/* Timeline */}
           <div>
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-4">
               <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t.timeline}</h2>
-              <button onClick={() => setSelectedDate(null)} className={`text-[10px] font-bold uppercase transition-colors ${!selectedDate ? 'text-indigo-600' : 'text-gray-400'}`}>
+              <button onClick={() => setSelectedDate(null)} className={`text-[10px] font-black uppercase transition-colors ${!selectedDate ? 'text-indigo-600' : 'text-gray-400'}`}>
                 {t.viewAll}
               </button>
             </div>
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide no-scrollbar -mx-1 px-1">
+            <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide no-scrollbar -mx-1 px-1">
               {timelineDates.map(date => (
-                <button key={date.full} onClick={() => setSelectedDate(selectedDate === date.full ? null : date.full)} className={`flex-shrink-0 w-14 h-16 rounded-2xl flex flex-col items-center justify-center gap-0.5 transition-all border ${selectedDate === date.full ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100 scale-105' : 'bg-white border-gray-100 text-gray-400 hover:border-indigo-300'}`}>
+                <button key={date.full} onClick={() => setSelectedDate(selectedDate === date.full ? null : date.full)} className={`flex-shrink-0 w-16 h-20 rounded-[1.5rem] flex flex-col items-center justify-center gap-1 transition-all border-2 ${selectedDate === date.full ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl shadow-indigo-100 scale-110' : 'bg-white border-gray-100 text-gray-400 hover:border-indigo-200'}`}>
                   <span className="text-[9px] font-black uppercase tracking-tighter opacity-70">{date.weekday}</span>
-                  <span className="text-base font-black">{date.day}</span>
-                  {date.isToday && <span className={`w-1 h-1 rounded-full ${selectedDate === date.full ? 'bg-white' : 'bg-indigo-500'}`}></span>}
+                  <span className="text-lg font-black">{date.day}</span>
+                  {date.isToday && <span className={`w-1.5 h-1.5 rounded-full ${selectedDate === date.full ? 'bg-white' : 'bg-indigo-500'}`}></span>}
                 </button>
               ))}
             </div>
@@ -317,45 +324,45 @@ const App: React.FC = () => {
 
           {/* Filtro de Cores Mobile */}
           <div className="md:hidden">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-4">
               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t.filterByColor}</p>
               {filterColor && (
-                <button onClick={() => setFilterColor(null)} className="text-indigo-500 font-bold text-[10px] uppercase">
+                <button onClick={() => setFilterColor(null)} className="text-indigo-500 font-black text-[10px] uppercase">
                   {t.clearFilter}
                 </button>
               )}
             </div>
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide no-scrollbar -mx-1 px-1">
+            <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide no-scrollbar -mx-1 px-1">
                {Object.values(NoteColor).map(color => (
-                <button key={color} onClick={() => setFilterColor(filterColor === color ? null : color)} className={`flex-shrink-0 w-10 h-10 rounded-full shadow-sm transition-all active:scale-90 border-2 flex items-center justify-center ${color} ${filterColor === color ? 'border-indigo-600 scale-110 shadow-md' : 'border-transparent hover:scale-110'}`}>
-                  {filterColor === color && <i className={`fas fa-check text-[10px] ${['bg-yellow-200', 'bg-blue-200', 'bg-green-200', 'bg-pink-200', 'bg-purple-200', 'bg-orange-200', 'theme-zen', 'theme-paper'].includes(color) ? 'text-indigo-600' : 'text-white'}`}></i>}
+                <button key={color} onClick={() => setFilterColor(filterColor === color ? null : color)} className={`flex-shrink-0 w-12 h-12 rounded-full shadow-md transition-all active:scale-90 border-2 flex items-center justify-center ${color} ${filterColor === color ? 'border-indigo-600 scale-110 shadow-lg' : 'border-transparent hover:scale-110'}`}>
+                  {filterColor === color && <i className={`fas fa-check text-xs ${['bg-yellow-200', 'bg-blue-200', 'bg-green-200', 'bg-pink-200', 'bg-purple-200', 'bg-orange-200', 'theme-zen', 'theme-paper'].includes(color) ? 'text-indigo-600' : 'text-white'}`}></i>}
                 </button>
               ))}
             </div>
           </div>
         </div>
 
-        <main className="flex-1 px-6 md:px-10 py-6">
+        <main className="flex-1 px-6 md:px-10 py-8">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-              <i className="fas fa-circle-notch fa-spin text-4xl mb-4 text-indigo-400"></i>
-              <p className="font-bold uppercase tracking-widest text-xs">{t.loading}</p>
+              <i className="fas fa-circle-notch fa-spin text-5xl mb-6 text-indigo-400"></i>
+              <p className="font-black uppercase tracking-widest text-xs">{t.loading}</p>
             </div>
           ) : filteredNotes.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6 md:gap-8 animate-in fade-in duration-700">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-8 md:gap-10 animate-in fade-in duration-1000">
               {filteredNotes.map(note => (
                 <NoteCard key={note.id} note={note} language={language} onEdit={(n) => { setEditingNote(n); setIsFormOpen(true); }} onDelete={handleDeleteNote} onUpdate={handleUpdateNoteField} />
               ))}
             </div>
           ) : (
             <div className="h-[40vh] flex items-center justify-center">
-              <div className="text-center max-w-xs animate-in fade-in zoom-in duration-500">
-                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mx-auto mb-4">
-                  <i className="fas fa-calendar-xmark text-2xl"></i>
+              <div className="text-center max-w-sm animate-in fade-in zoom-in duration-500">
+                <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mx-auto mb-6">
+                  <i className="fas fa-calendar-xmark text-3xl"></i>
                 </div>
-                <h3 className="text-lg font-black text-gray-800 mb-1">{t.noNotes}</h3>
-                <p className="text-gray-400 text-xs font-medium">{t.noNotesDesc}</p>
-                <Button variant="ghost" className="mt-4 text-xs font-bold text-indigo-600 uppercase" onClick={() => setIsFormOpen(true)}>
+                <h3 className="text-xl font-black text-gray-800 mb-2">{t.noNotes}</h3>
+                <p className="text-gray-400 text-sm font-semibold">{t.noNotesDesc}</p>
+                <Button variant="ghost" className="mt-6 text-sm font-black text-indigo-600 uppercase tracking-widest" onClick={() => setIsFormOpen(true)}>
                   {t.startWriting}
                 </Button>
               </div>
@@ -366,48 +373,48 @@ const App: React.FC = () => {
 
       {/* MODAL CONFIGURAÇÕES */}
       {isSettingsOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[70] flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white/90 glass-panel w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="p-8">
-              <div className="flex justify-between items-center mb-8">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600">
-                    <i className="fas fa-gear text-lg"></i>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xl z-[70] flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="bg-white/95 glass-panel w-full max-w-lg rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-400">
+            <div className="p-10">
+              <div className="flex justify-between items-center mb-10">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600">
+                    <i className="fas fa-gear text-2xl"></i>
                   </div>
-                  <h2 className="text-2xl font-black text-gray-800 tracking-tight">{t.settings}</h2>
+                  <h2 className="text-3xl font-black text-gray-900 tracking-tight">{t.settings}</h2>
                 </div>
-                <button onClick={() => setIsSettingsOpen(false)} className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 transition-colors">
-                  <i className="fas fa-times text-xl"></i>
+                <button onClick={() => setIsSettingsOpen(false)} className="w-12 h-12 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 transition-all">
+                  <i className="fas fa-times text-2xl"></i>
                 </button>
               </div>
 
-              <div className="space-y-8">
+              <div className="space-y-10">
                 <div>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">{t.language}</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button onClick={() => toggleLanguage(Language.PT)} className={`flex items-center justify-center gap-3 py-4 rounded-2xl border-2 transition-all font-bold ${language === Language.PT ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-100 text-gray-500 hover:border-indigo-200'}`}>
-                      <img src="https://flagcdn.com/w40/br.png" className="w-6 h-4 object-cover rounded-sm" alt="PT" /> Português
+                  <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-5">{t.language}</label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <button onClick={() => toggleLanguage(Language.PT)} className={`flex items-center justify-center gap-4 py-5 rounded-3xl border-2 transition-all font-black text-sm uppercase ${language === Language.PT ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-gray-100 text-gray-500 hover:border-indigo-200'}`}>
+                      <img src="https://flagcdn.com/w40/br.png" className="w-7 h-5 object-cover rounded shadow-sm" alt="PT" /> Português
                     </button>
-                    <button onClick={() => toggleLanguage(Language.EN)} className={`flex items-center justify-center gap-3 py-4 rounded-2xl border-2 transition-all font-bold ${language === Language.EN ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-100 text-gray-500 hover:border-indigo-200'}`}>
-                      <img src="https://flagcdn.com/w40/us.png" className="w-6 h-4 object-cover rounded-sm" alt="EN" /> English
+                    <button onClick={() => toggleLanguage(Language.EN)} className={`flex items-center justify-center gap-4 py-5 rounded-3xl border-2 transition-all font-black text-sm uppercase ${language === Language.EN ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-gray-100 text-gray-500 hover:border-indigo-200'}`}>
+                      <img src="https://flagcdn.com/w40/us.png" className="w-7 h-5 object-cover rounded shadow-sm" alt="EN" /> English
                     </button>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">{t.security}</label>
-                  <div className="flex flex-col gap-3">
-                    <button onClick={handleExport} className="w-full flex items-center justify-between px-6 py-4 bg-gray-50 hover:bg-indigo-50 rounded-2xl transition-colors group">
-                      <div className="flex items-center gap-4">
-                        <i className="fas fa-file-export text-indigo-600 text-lg"></i>
-                        <span className="font-bold text-gray-700 text-sm">{t.export}</span>
+                  <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-5">{t.security}</label>
+                  <div className="flex flex-col gap-4">
+                    <button onClick={handleExport} className="w-full flex items-center justify-between px-8 py-5 bg-gray-50 hover:bg-indigo-50 rounded-3xl transition-all group border-2 border-transparent hover:border-indigo-100">
+                      <div className="flex items-center gap-5">
+                        <i className="fas fa-file-export text-indigo-600 text-xl"></i>
+                        <span className="font-black text-gray-700 text-sm uppercase tracking-wider">{t.export}</span>
                       </div>
                       <i className="fas fa-chevron-right text-gray-300 group-hover:text-indigo-400 transition-colors"></i>
                     </button>
-                    <button onClick={handleImportClick} className="w-full flex items-center justify-between px-6 py-4 bg-gray-50 hover:bg-indigo-50 rounded-2xl transition-colors group">
-                      <div className="flex items-center gap-4">
-                        <i className="fas fa-file-import text-indigo-600 text-lg"></i>
-                        <span className="font-bold text-gray-700 text-sm">{t.import}</span>
+                    <button onClick={handleImportClick} className="w-full flex items-center justify-between px-8 py-5 bg-gray-50 hover:bg-indigo-50 rounded-3xl transition-all group border-2 border-transparent hover:border-indigo-100">
+                      <div className="flex items-center gap-5">
+                        <i className="fas fa-file-import text-indigo-600 text-xl"></i>
+                        <span className="font-black text-gray-700 text-sm uppercase tracking-wider">{t.import}</span>
                       </div>
                       <i className="fas fa-chevron-right text-gray-300 group-hover:text-indigo-400 transition-colors"></i>
                     </button>
@@ -416,8 +423,8 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <div className="mt-10 pt-6 border-t border-gray-100 flex justify-center">
-                <Button variant="ghost" className="text-indigo-600 font-black tracking-widest text-xs uppercase" onClick={() => setIsSettingsOpen(false)}>
+              <div className="mt-12 pt-8 border-t border-gray-100 flex justify-center">
+                <Button variant="ghost" className="text-indigo-600 font-black tracking-[0.2em] text-xs uppercase hover:bg-indigo-50" onClick={() => setIsSettingsOpen(false)}>
                   {t.close}
                 </Button>
               </div>
@@ -432,23 +439,23 @@ const App: React.FC = () => {
       )}
 
       {/* BOTÃO FLUTUANTE MOBILE */}
-      <button onClick={() => { setEditingNote(undefined); setIsFormOpen(true); }} className="md:hidden fixed bottom-24 right-6 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-2xl z-40 flex items-center justify-center active:scale-90 transition-transform">
-        <i className="fas fa-plus text-xl"></i>
+      <button onClick={() => { setEditingNote(undefined); setIsFormOpen(true); }} className="md:hidden fixed bottom-28 right-8 w-16 h-16 bg-indigo-600 text-white rounded-full shadow-2xl z-40 flex items-center justify-center active:scale-90 transition-transform">
+        <i className="fas fa-plus text-2xl"></i>
       </button>
 
       {/* TAB BAR MOBILE */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t px-6 py-3 flex items-center justify-around z-50">
-        <button onClick={() => { setSelectedDate(null); setFilterColor(null); window.scrollTo({top: 0, behavior: 'smooth'}); }} className={`flex flex-col items-center gap-1 ${(!selectedDate && !filterColor) ? 'text-indigo-600' : 'text-gray-400'}`}>
-          <i className="fas fa-home text-lg"></i>
-          <span className="text-[10px] font-bold tracking-tight">{t.home}</span>
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t px-8 py-4 flex items-center justify-around z-50 shadow-2xl">
+        <button onClick={() => { setSelectedDate(null); setFilterColor(null); window.scrollTo({top: 0, behavior: 'smooth'}); }} className={`flex flex-col items-center gap-1.5 ${(!selectedDate && !filterColor) ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}>
+          <i className="fas fa-home text-xl"></i>
+          <span className="text-[10px] font-black tracking-widest uppercase">{t.home}</span>
         </button>
-        <button onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])} className={`flex flex-col items-center gap-1 ${selectedDate === new Date().toISOString().split('T')[0] ? 'text-indigo-600' : 'text-gray-400'}`}>
-          <i className="fas fa-calendar-check text-lg"></i>
-          <span className="text-[10px] font-bold tracking-tight">{t.today}</span>
+        <button onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])} className={`flex flex-col items-center gap-1.5 ${selectedDate === new Date().toISOString().split('T')[0] ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}>
+          <i className="fas fa-calendar-check text-xl"></i>
+          <span className="text-[10px] font-black tracking-widest uppercase">{t.today}</span>
         </button>
-        <button onClick={() => setIsSettingsOpen(true)} className={`flex flex-col items-center gap-1 ${isSettingsOpen ? 'text-indigo-600' : 'text-gray-400'}`}>
-          <i className="fas fa-gear text-lg"></i>
-          <span className="text-[10px] font-bold tracking-tight">{t.settings}</span>
+        <button onClick={() => setIsSettingsOpen(true)} className={`flex flex-col items-center gap-1.5 ${isSettingsOpen ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}>
+          <i className="fas fa-gear text-xl"></i>
+          <span className="text-[10px] font-black tracking-widest uppercase">{t.settings}</span>
         </button>
       </nav>
     </div>

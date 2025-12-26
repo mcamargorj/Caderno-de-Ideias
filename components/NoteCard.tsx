@@ -23,8 +23,8 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
 
   const isDarkTheme = [NoteColor.CELEBRATION, NoteColor.TECH, NoteColor.GALAXY].includes(note.color);
   
-  const textColor = isDarkTheme ? 'text-white' : 'text-gray-800';
-  const subTextColor = isDarkTheme ? 'text-gray-300' : 'text-gray-700';
+  const textColor = isDarkTheme ? 'text-white' : 'text-gray-900';
+  const subTextColor = isDarkTheme ? 'text-gray-300' : 'text-slate-700';
   const metaTextColor = isDarkTheme ? 'text-gray-400' : 'text-gray-500';
   const iconColor = isDarkTheme ? 'text-gray-300' : 'text-gray-600';
 
@@ -63,16 +63,11 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
 
     const title = encodeURIComponent(note.title || 'Insight');
     const details = encodeURIComponent(note.content);
-    
-    // Formatar data para o Google: YYYYMMDDTHHmmSSZ
     const datePart = note.date.replace(/-/g, '');
     const timePart = (note.time || '09:00').replace(/:/g, '') + '00';
     const startDateTime = `${datePart}T${timePart}`;
-    
-    // Adicionar 1 hora para o fim
     const endHour = parseInt((note.time || '09:00').split(':')[0]) + 1;
     const endDateTime = `${datePart}T${String(endHour).padStart(2, '0')}${timePart.substring(2)}`;
-
     const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startDateTime}/${endDateTime}&details=${details}`;
     window.open(url, '_blank');
   };
@@ -117,6 +112,8 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
           await navigator.share({ files: [file], title: note.title });
         }
       }
+    } catch (e) {
+      console.error("Erro ao compartilhar", e);
     } finally {
       setIsSharing(false);
     }
@@ -128,65 +125,65 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
   return (
     <div 
       ref={cardRef}
-      className={`sticky-note w-full aspect-square ${note.color} p-6 shadow-lg relative flex flex-col cursor-pointer border border-black/5 rounded-sm overflow-hidden`}
+      className={`sticky-note w-full min-h-[360px] h-auto ${note.color} p-7 shadow-lg relative flex flex-col cursor-pointer border border-black/5 rounded-sm overflow-hidden transition-all hover:shadow-2xl`}
       onClick={() => onEdit(note)}
     >
       {!isDarkTheme && note.color !== NoteColor.PAPER && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-16 h-8 bg-white/30 rotate-1 pointer-events-none backdrop-blur-sm"></div>
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-16 h-8 bg-white/30 rotate-1 pointer-events-none backdrop-blur-sm z-10"></div>
       )}
       
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex flex-col gap-1">
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6">
+        <div className="flex flex-col gap-1 max-w-full">
           {note.date && (
-            <div className={`flex items-center gap-1.5 px-2 py-0.5 ${isDarkTheme ? 'bg-white/10 text-white' : 'bg-black/5 text-gray-600'} rounded text-[9px] font-bold uppercase tracking-tighter`}>
-              <i className="far fa-calendar-check text-[10px]"></i>
-              {formattedTargetDate}
+            <div className={`flex items-center flex-wrap gap-1.5 px-2.5 py-1.5 ${isDarkTheme ? 'bg-white/10 text-white' : 'bg-black/5 text-slate-700'} rounded-lg text-[10px] font-black uppercase tracking-tighter`}>
+              <i className="far fa-calendar-check text-xs"></i>
+              <span>{formattedTargetDate}</span>
               {note.time && (
                 <span className="ml-1 border-l border-current pl-1.5 flex items-center gap-1">
-                  <i className="far fa-clock text-[8px]"></i> {note.time}
+                  <i className="far fa-clock text-[10px]"></i> {note.time}
                 </span>
               )}
             </div>
           )}
         </div>
 
-        <div className="action-icons-container flex gap-0.5 md:gap-1">
+        <div className="action-icons-container flex flex-wrap justify-end gap-1 ml-auto">
           {note.date && (
-            <button onClick={handleAddToCalendar} title="Lembrete / Calendário" className={`w-7 h-7 flex items-center justify-center rounded-full transition-all hover:bg-black/10 ${iconColor}`}>
-              <i className="fas fa-bell text-xs"></i>
+            <button onClick={handleAddToCalendar} title="Lembrete / Calendário" className={`w-8 h-8 flex items-center justify-center rounded-full transition-all hover:bg-black/10 ${iconColor}`}>
+              <i className="fas fa-bell text-sm"></i>
             </button>
           )}
-          <button onClick={handleSpeak} title="Ouvir" className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${isSpeaking ? 'bg-indigo-500 text-white' : `hover:bg-black/10 ${iconColor}`}`}>
-            <i className={`fas ${isSpeaking ? 'fa-volume-up animate-pulse' : 'fa-volume-low'} text-xs`}></i>
+          <button onClick={handleSpeak} title="Ouvir" className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${isSpeaking ? 'bg-indigo-500 text-white' : `hover:bg-black/10 ${iconColor}`}`}>
+            <i className={`fas ${isSpeaking ? 'fa-volume-up animate-pulse' : 'fa-volume-low'} text-sm`}></i>
           </button>
-          <button onClick={handleCopy} title="Copiar" className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${isCopied ? 'bg-green-500 text-white' : `hover:bg-black/10 ${iconColor}`}`}>
-            <i className={`fas ${isCopied ? 'fa-check' : 'fa-copy'} text-xs`}></i>
+          <button onClick={handleCopy} title="Copiar" className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${isCopied ? 'bg-green-500 text-white' : `hover:bg-black/10 ${iconColor}`}`}>
+            <i className={`fas ${isCopied ? 'fa-check' : 'fa-copy'} text-sm`}></i>
           </button>
-          <button onClick={handleShare} title="Compartilhar" className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${isSharing ? 'bg-indigo-500 text-white' : `hover:bg-black/10 ${iconColor}`}`}>
-            <i className={`fas ${isSharing ? 'fa-spinner fa-spin' : 'fa-share-nodes'} text-xs`}></i>
+          <button onClick={handleShare} title="Compartilhar" className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${isSharing ? 'bg-indigo-500 text-white' : `hover:bg-black/10 ${iconColor}`}`}>
+            <i className={`fas ${isSharing ? 'fa-spinner fa-spin' : 'fa-share-nodes'} text-sm`}></i>
           </button>
-          <button onClick={(e) => { e.stopPropagation(); onDelete(note.id); }} className={`w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-500 hover:text-white ${isDarkTheme ? 'text-gray-500' : 'text-gray-400'} transition-all`}>
-            <i className="fas fa-trash-can text-xs"></i>
+          <button onClick={(e) => { e.stopPropagation(); onDelete(note.id); }} className={`w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-500 hover:text-white ${isDarkTheme ? 'text-gray-500' : 'text-gray-400'} transition-all`}>
+            <i className="fas fa-trash-can text-sm"></i>
           </button>
         </div>
       </div>
 
-      <div className="mb-2">
-        <h3 className={`text-xl font-black ${textColor} leading-[1.2] tracking-tight`}>
+      <div className="mb-4">
+        <h3 className={`text-2xl font-black ${textColor} leading-tight tracking-tight break-words`}>
           {note.title || (language === Language.PT ? 'Insight' : 'Insight')}
         </h3>
       </div>
 
-      <p className={`${subTextColor} overflow-hidden text-ellipsis line-clamp-6 text-sm flex-1 font-medium whitespace-pre-wrap leading-relaxed`}>
+      <p className={`${subTextColor} text-base flex-1 font-medium whitespace-pre-wrap leading-relaxed mb-6 line-clamp-[15]`}>
         {note.content}
       </p>
 
-      <div className="mt-4 flex flex-col gap-2">
-        <div className={`flex justify-between items-center text-[10px] ${metaTextColor} font-bold border-t ${isDarkTheme ? 'border-white/10' : 'border-black/10'} pt-3 uppercase tracking-wider`}>
-          <span>{error || (language === Language.PT ? `Atu: ${formattedUpdateDate}` : `Upd: ${formattedUpdateDate}`)}</span>
-          <div className="ai-button-container">
-             <Button variant="ghost" size="sm" className={`h-7 px-3 text-[10px] font-black rounded-lg transition-transform active:scale-95 ${isEnhancing ? 'bg-indigo-600 text-white' : isDarkTheme ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-black/5 hover:bg-black/10 text-slate-700'}`} onClick={handleEnhance} isLoading={isEnhancing}>
-                {isEnhancing ? '...' : <><i className="fas fa-wand-magic-sparkles mr-1"></i> IA</>}
+      <div className="mt-auto pt-4">
+        <div className={`flex justify-between items-center text-[10px] ${metaTextColor} font-black border-t ${isDarkTheme ? 'border-white/10' : 'border-black/10'} pt-4 uppercase tracking-widest`}>
+          <span className="truncate mr-4">{error || (language === Language.PT ? `Atu: ${formattedUpdateDate}` : `Upd: ${formattedUpdateDate}`)}</span>
+          <div className="ai-button-container shrink-0">
+             <Button variant="ghost" size="sm" className={`h-8 px-4 text-[10px] font-black rounded-xl transition-all active:scale-95 ${isEnhancing ? 'bg-indigo-600 text-white' : isDarkTheme ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-black/5 hover:bg-black/10 text-slate-800'}`} onClick={handleEnhance} isLoading={isEnhancing}>
+                {isEnhancing ? '...' : <><i className="fas fa-wand-magic-sparkles mr-2"></i> IA</>}
               </Button>
           </div>
         </div>
