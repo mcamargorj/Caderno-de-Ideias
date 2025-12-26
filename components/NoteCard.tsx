@@ -97,7 +97,6 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
 
     try {
       if (cardRef.current) {
-        // Criamos um ID temporário único para encontrar este card específico no clone do documento
         const tempId = `share-target-${note.id}`;
         cardRef.current.setAttribute('data-share-id', tempId);
 
@@ -115,19 +114,24 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
               clonedCard.style.overflow = 'visible';
               clonedCard.style.transform = 'none';
               
+              // OCULTAR ÍCONES E BOTÃO IA NA IMAGEM
+              const actionIcons = clonedCard.querySelector('.action-icons-container') as HTMLElement;
+              if (actionIcons) actionIcons.style.display = 'none';
+              
+              const aiButton = clonedCard.querySelector('.ai-button-container') as HTMLElement;
+              if (aiButton) aiButton.style.display = 'none';
+
               const titleEl = clonedCard.querySelector('h3');
               if (titleEl) {
-                // Removemos o 'truncate' que causa o corte por ter overflow hidden
                 titleEl.classList.remove('truncate');
                 titleEl.style.overflow = 'visible';
                 titleEl.style.whiteSpace = 'normal';
                 titleEl.style.display = 'block';
-                titleEl.style.lineHeight = '1.6'; // Aumentamos para garantir que acentos não cortem
-                titleEl.style.paddingBottom = '10px'; // Espaço extra de segurança
+                titleEl.style.lineHeight = '1.4';
+                titleEl.style.paddingBottom = '10px';
                 titleEl.style.height = 'auto';
               }
 
-              // Ajustamos o parágrafo também para não cortar texto
               const contentEl = clonedCard.querySelector('p');
               if (contentEl) {
                 contentEl.classList.remove('line-clamp-6');
@@ -137,7 +141,6 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
           }
         });
 
-        // Limpamos o atributo após a captura
         cardRef.current.removeAttribute('data-share-id');
 
         const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
@@ -182,24 +185,24 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
       className={`sticky-note w-full aspect-square ${note.color} p-6 shadow-lg relative flex flex-col cursor-pointer border border-black/5 rounded-sm overflow-hidden`}
       onClick={() => onEdit(note)}
     >
-      {/* Decorative Tape (Only for standard paper-like themes) */}
+      {/* Decorative Tape */}
       {!isDarkTheme && note.color !== NoteColor.PAPER && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-16 h-8 bg-white/30 rotate-1 pointer-events-none backdrop-blur-sm"></div>
       )}
       
-      {note.date && (
-        <div className={`absolute top-4 left-6 flex items-center gap-1.5 px-2 py-0.5 ${isDarkTheme ? 'bg-white/10 text-white' : 'bg-black/5 text-gray-600'} rounded text-[9px] font-bold uppercase tracking-tighter`}>
-          <i className="far fa-calendar-check"></i>
-          {formattedTargetDate}
+      {/* Top Header Row (Date & Actions) */}
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex items-center">
+          {note.date && (
+            <div className={`flex items-center gap-1.5 px-2 py-0.5 ${isDarkTheme ? 'bg-white/10 text-white' : 'bg-black/5 text-gray-600'} rounded text-[9px] font-bold uppercase tracking-tighter`}>
+              <i className="far fa-calendar-check text-[10px]"></i>
+              {formattedTargetDate}
+            </div>
+          )}
         </div>
-      )}
 
-      <div className={`flex justify-between items-start mb-1 group/header ${note.date ? 'mt-9' : 'mt-2'}`}>
-        <h3 className={`text-xl font-black ${textColor} flex-1 leading-[1.2] tracking-tight pr-2`}>
-          {note.title || (language === Language.PT ? 'Insight' : 'Insight')}
-        </h3>
-        
-        <div className="flex gap-0.5 md:gap-1 -mt-3.5">
+        {/* Action Icons - Moved UP and to the Right */}
+        <div className="action-icons-container flex gap-0.5 md:gap-1">
           <button onClick={handleSpeak} title="Ouvir" className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${isSpeaking ? 'bg-indigo-500 text-white' : `hover:bg-black/10 ${iconColor}`}`}>
             <i className={`fas ${isSpeaking ? 'fa-volume-up animate-pulse' : 'fa-volume-low'} text-xs`}></i>
           </button>
@@ -218,7 +221,14 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
         </div>
       </div>
 
-      <p className={`${subTextColor} overflow-hidden text-ellipsis line-clamp-6 text-sm flex-1 font-medium whitespace-pre-wrap leading-relaxed mt-1`}>
+      {/* Title - Positioned "below the vision" of top elements */}
+      <div className="mb-2">
+        <h3 className={`text-xl font-black ${textColor} leading-[1.2] tracking-tight`}>
+          {note.title || (language === Language.PT ? 'Insight' : 'Insight')}
+        </h3>
+      </div>
+
+      <p className={`${subTextColor} overflow-hidden text-ellipsis line-clamp-6 text-sm flex-1 font-medium whitespace-pre-wrap leading-relaxed`}>
         {note.content}
       </p>
 
@@ -228,7 +238,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
             {error || (language === Language.PT ? `Atu: ${formattedUpdateDate}` : `Upd: ${formattedUpdateDate}`)}
           </span>
           
-          <div className="flex gap-2">
+          <div className="ai-button-container flex gap-2">
              <Button 
                 variant="ghost" 
                 size="sm" 
