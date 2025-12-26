@@ -64,10 +64,12 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
     const title = encodeURIComponent(note.title || 'Insight');
     const details = encodeURIComponent(note.content);
     
+    // Formatar data para o Google: YYYYMMDDTHHmmSSZ
     const datePart = note.date.replace(/-/g, '');
     const timePart = (note.time || '09:00').replace(/:/g, '') + '00';
     const startDateTime = `${datePart}T${timePart}`;
     
+    // Adicionar 1 hora para o fim
     const endHour = parseInt((note.time || '09:00').split(':')[0]) + 1;
     const endDateTime = `${datePart}T${String(endHour).padStart(2, '0')}${timePart.substring(2)}`;
 
@@ -126,21 +128,21 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
   return (
     <div 
       ref={cardRef}
-      className={`sticky-note w-full min-h-[320px] h-auto ${note.color} p-6 shadow-lg relative flex flex-col cursor-pointer border border-black/5 rounded-sm overflow-hidden`}
+      className={`sticky-note w-full aspect-square ${note.color} p-6 shadow-lg relative flex flex-col cursor-pointer border border-black/5 rounded-sm overflow-hidden`}
       onClick={() => onEdit(note)}
     >
       {!isDarkTheme && note.color !== NoteColor.PAPER && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-16 h-8 bg-white/30 rotate-1 pointer-events-none backdrop-blur-sm z-10"></div>
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-16 h-8 bg-white/30 rotate-1 pointer-events-none backdrop-blur-sm"></div>
       )}
       
-      <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6">
-        <div className="flex flex-col gap-1 max-w-[60%]">
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col gap-1">
           {note.date && (
-            <div className={`flex items-center flex-wrap gap-1.5 px-2 py-1 ${isDarkTheme ? 'bg-white/10 text-white' : 'bg-black/5 text-gray-600'} rounded text-[9px] font-bold uppercase tracking-tighter`}>
+            <div className={`flex items-center gap-1.5 px-2 py-0.5 ${isDarkTheme ? 'bg-white/10 text-white' : 'bg-black/5 text-gray-600'} rounded text-[9px] font-bold uppercase tracking-tighter`}>
               <i className="far fa-calendar-check text-[10px]"></i>
-              <span>{formattedTargetDate}</span>
+              {formattedTargetDate}
               {note.time && (
-                <span className="ml-0.5 border-l border-current pl-1.5 flex items-center gap-1">
+                <span className="ml-1 border-l border-current pl-1.5 flex items-center gap-1">
                   <i className="far fa-clock text-[8px]"></i> {note.time}
                 </span>
               )}
@@ -148,7 +150,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
           )}
         </div>
 
-        <div className="action-icons-container flex flex-wrap justify-end gap-0.5 md:gap-1 ml-auto">
+        <div className="action-icons-container flex gap-0.5 md:gap-1">
           {note.date && (
             <button onClick={handleAddToCalendar} title="Lembrete / Calendário" className={`w-7 h-7 flex items-center justify-center rounded-full transition-all hover:bg-black/10 ${iconColor}`}>
               <i className="fas fa-bell text-xs"></i>
@@ -170,19 +172,19 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
       </div>
 
       <div className="mb-2">
-        <h3 className={`text-xl font-black ${textColor} leading-tight tracking-tight break-words`}>
+        <h3 className={`text-xl font-black ${textColor} leading-[1.2] tracking-tight`}>
           {note.title || (language === Language.PT ? 'Insight' : 'Insight')}
         </h3>
       </div>
 
-      <p className={`${subTextColor} overflow-hidden text-ellipsis line-clamp-[12] text-sm flex-1 font-medium whitespace-pre-wrap leading-relaxed mb-4`}>
+      <p className={`${subTextColor} overflow-hidden text-ellipsis line-clamp-6 text-sm flex-1 font-medium whitespace-pre-wrap leading-relaxed`}>
         {note.content}
       </p>
 
-      <div className="mt-auto pt-4 flex flex-col gap-2">
+      <div className="mt-4 flex flex-col gap-2">
         <div className={`flex justify-between items-center text-[10px] ${metaTextColor} font-bold border-t ${isDarkTheme ? 'border-white/10' : 'border-black/10'} pt-3 uppercase tracking-wider`}>
-          <span className="truncate mr-2">{error || (language === Language.PT ? `Atu: ${formattedUpdateDate}` : `Upd: ${formattedUpdateDate}`)}</span>
-          <div className="ai-button-container shrink-0">
+          <span>{error || (language === Language.PT ? `Atu: ${formattedUpdateDate}` : `Upd: ${formattedUpdateDate}`)}</span>
+          <div className="ai-button-container">
              <Button variant="ghost" size="sm" className={`h-7 px-3 text-[10px] font-black rounded-lg transition-transform active:scale-95 ${isEnhancing ? 'bg-indigo-600 text-white' : isDarkTheme ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-black/5 hover:bg-black/10 text-slate-700'}`} onClick={handleEnhance} isLoading={isEnhancing}>
                 {isEnhancing ? '...' : <><i className="fas fa-wand-magic-sparkles mr-1"></i> IA</>}
               </Button>
