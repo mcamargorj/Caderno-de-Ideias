@@ -17,6 +17,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -52,25 +53,67 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
     }
   };
 
-  const handleShare = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (isSharing) return;
-    setIsSharing(true);
-
+  const getFormattedData = () => {
     const formattedTargetDate = note.date ? new Date(note.date + 'T00:00:00').toLocaleDateString(language, {
       day: '2-digit',
       month: 'short',
       year: 'numeric'
     }) : null;
 
+    const titleStr = note.title ? `[${note.title.toUpperCase()}]` : `[INSIGHT]`;
+    const dateStr = formattedTargetDate ? `📅 Data: ${formattedTargetDate}` : '';
+    
+    return {
+      titleStr,
+      dateStr,
+      fullText: `${titleStr}\n${dateStr ? dateStr + '\n' : ''}---\n${note.content}\n---\nEnviado via Caderno de Insights`
+    };
+  };
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const { fullText } = getFormattedData();
+    
+    try {
+      await navigator.clipboard.writeText(fullText);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (err) {
+      console.error("Erro ao copiar:", err);
+    }
+  };
+
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isSharing) return;
+    setIsSharing(true);
+
     try {
       if (cardRef.current) {
-        // Opção 1: Tentar compartilhar como IMAGEM (Visualmente rico)
+        // Geração da IMAGEM com html2canvas
         const canvas = await html2canvas(cardRef.current, {
           backgroundColor: null,
-          scale: 2, // Melhor qualidade
+          scale: 3, 
           logging: false,
-          useCORS: true
+          useCORS: true,
+          allowTaint: true,
+          scrollY: -window.scrollY,
+          scrollX: -window.scrollX,
+          onclone: (clonedDoc) => {
+            const clonedCard = clonedDoc.querySelector('.sticky-note');
+            if (clonedCard) {
+              (clonedCard as HTMLElement).style.overflow = 'visible';
+            }
+            const titleEl = clonedDoc.querySelector('h3');
+            if (titleEl) {
+              (titleEl as HTMLElement).style.paddingTop = '10px';
+              (titleEl as HTMLElement).style.paddingBottom = '5px';
+              (titleEl as HTMLElement).style.lineHeight = '1.4';
+              (titleEl as HTMLElement).style.overflow = 'visible';
+              (titleEl as HTMLElement).style.textOverflow = 'clip';
+              (titleEl as HTMLElement).style.whiteSpace = 'normal';
+            }
+          }
         });
 
         const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
@@ -80,27 +123,23 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
           await navigator.share({
             files: [file],
             title: note.title || 'Insight',
-            text: note.content.substring(0, 100) + '...'
+            text: note.content.substring(0, 50) + '...'
           });
         } else {
-          // Fallback: Se não puder compartilhar arquivo, compartilha texto estruturado
-          const textToShare = `${note.title ? `[${note.title.toUpperCase()}]\n` : ''}${formattedTargetDate ? `📅 ${formattedTargetDate}\n` : ''}---\n${note.content}\n---\nEnviado via Caderno de Insights`;
-          
+          // Se não puder compartilhar imagem, compartilha o texto formatado
+          const { fullText } = getFormattedData();
           if (navigator.share) {
             await navigator.share({
               title: note.title || 'Insight',
-              text: textToShare,
+              text: fullText,
             });
           } else {
-            await navigator.clipboard.writeText(textToShare);
-            alert(language === Language.PT ? "Texto formatado copiado!" : "Formatted text copied!");
+            handleCopy(e);
           }
         }
       }
     } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
-        console.error("Erro ao compartilhar:", err);
-      }
+      if ((err as Error).name !== 'AbortError') console.error("Erro ao compartilhar:", err);
     } finally {
       setIsSharing(false);
     }
@@ -133,15 +172,26 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
         </div>
       )}
 
-      <div className={`flex justify-between items-start mb-2 group/header ${note.date ? 'mt-6' : ''}`}>
-        <h3 className="text-lg font-black text-gray-800 line-clamp-1 flex-1 leading-tight tracking-tight pr-2">
+      <div className={`flex justify-between items-start mb-2 group/header ${note.date ? 'mt-10' : 'mt-4'}`}>
+        <h3 className="text-xl font-black text-gray-800 truncate flex-1 leading-[1.3] tracking-tight pr-2 pt-1">
           {note.title || (language === Language.PT ? 'Insight' : 'Insight')}
         </h3>
-        <div className="flex gap-1">
-          <button onClick={handleSpeak} className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${isSpeaking ? 'bg-indigo-500 text-white' : 'hover:bg-black/10 text-gray-600'}`}>
+        
+        {/* Top Utility Toolbar */}
+        <div className="flex gap-0.5 md:gap-1">
+          <button onClick={handleSpeak} title="Ouvir" className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${isSpeaking ? 'bg-indigo-500 text-white' : 'hover:bg-black/10 text-gray-600'}`}>
             <i className={`fas ${isSpeaking ? 'fa-volume-up animate-pulse' : 'fa-volume-low'} text-xs`}></i>
           </button>
-          <button onClick={(e) => { e.stopPropagation(); onDelete(note.id); }} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-500 hover:text-white text-gray-400 transition-all">
+          
+          <button onClick={handleCopy} title="Copiar Tudo" className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${isCopied ? 'bg-green-500 text-white' : 'hover:bg-black/10 text-gray-600'}`}>
+            <i className={`fas ${isCopied ? 'fa-check' : 'fa-copy'} text-xs`}></i>
+          </button>
+
+          <button onClick={handleShare} title="Compartilhar Imagem" disabled={isSharing} className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${isSharing ? 'bg-indigo-500 text-white' : 'hover:bg-black/10 text-gray-600'}`}>
+            <i className={`fas ${isSharing ? 'fa-spinner fa-spin' : 'fa-share-nodes'} text-xs`}></i>
+          </button>
+          
+          <button onClick={(e) => { e.stopPropagation(); onDelete(note.id); }} title="Excluir" className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-500 hover:text-white text-gray-400 transition-all">
             <i className="fas fa-trash-can text-xs"></i>
           </button>
         </div>
@@ -153,15 +203,11 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
 
       <div className="mt-4 flex flex-col gap-2">
         <div className="flex justify-between items-center text-[10px] text-gray-500 font-bold border-t border-black/10 pt-3 uppercase tracking-wider">
-          <span className={error ? 'text-red-600 animate-pulse' : ''}>{error || (language === Language.PT ? `Atu: ${formattedUpdateDate}` : `Upd: ${formattedUpdateDate}`)}</span>
+          <span className={error ? 'text-red-600 animate-pulse' : ''}>
+            {error || (language === Language.PT ? `Atu: ${formattedUpdateDate}` : `Upd: ${formattedUpdateDate}`)}
+          </span>
+          
           <div className="flex gap-2">
-             <button 
-                onClick={handleShare} 
-                disabled={isSharing}
-                className={`w-7 h-7 flex items-center justify-center rounded-full hover:bg-black/10 text-gray-600 transition-all ${isSharing ? 'opacity-50 scale-90' : ''}`}
-             >
-               <i className={`fas ${isSharing ? 'fa-spinner fa-spin' : 'fa-share-nodes'} text-xs`}></i>
-             </button>
              <Button 
                 variant="ghost" 
                 size="sm" 
