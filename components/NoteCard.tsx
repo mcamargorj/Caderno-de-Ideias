@@ -194,12 +194,12 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
         </div>
       )}
 
-      <div className={`flex justify-between items-start mb-2 group/header ${note.date ? 'mt-10' : 'mt-4'}`}>
-        <h3 className={`text-xl font-black ${textColor} flex-1 leading-[1.2] tracking-tight pr-2 pt-0`}>
+      <div className={`flex justify-between items-start mb-1 group/header ${note.date ? 'mt-9' : 'mt-2'}`}>
+        <h3 className={`text-xl font-black ${textColor} flex-1 leading-[1.2] tracking-tight pr-2`}>
           {note.title || (language === Language.PT ? 'Insight' : 'Insight')}
         </h3>
         
-        <div className="flex gap-0.5 md:gap-1 -mt-1">
+        <div className="flex gap-0.5 md:gap-1 -mt-3.5">
           <button onClick={handleSpeak} title="Ouvir" className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${isSpeaking ? 'bg-indigo-500 text-white' : `hover:bg-black/10 ${iconColor}`}`}>
             <i className={`fas ${isSpeaking ? 'fa-volume-up animate-pulse' : 'fa-volume-low'} text-xs`}></i>
           </button>
@@ -218,7 +218,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
         </div>
       </div>
 
-      <p className={`${subTextColor} overflow-hidden text-ellipsis line-clamp-6 text-sm flex-1 font-medium whitespace-pre-wrap leading-relaxed`}>
+      <p className={`${subTextColor} overflow-hidden text-ellipsis line-clamp-6 text-sm flex-1 font-medium whitespace-pre-wrap leading-relaxed mt-1`}>
         {note.content}
       </p>
 
