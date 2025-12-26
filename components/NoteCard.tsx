@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { Note, Language, NoteColor } from '../types';
 import { Button } from './Button';
@@ -98,8 +97,12 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
 
     try {
       if (cardRef.current) {
+        // Criamos um ID temporário único para encontrar este card específico no clone do documento
+        const tempId = `share-target-${note.id}`;
+        cardRef.current.setAttribute('data-share-id', tempId);
+
         const canvas = await html2canvas(cardRef.current, {
-          backgroundColor: isDarkTheme ? (note.color === NoteColor.TECH ? '#020617' : note.color === NoteColor.GALAXY ? '#1e1b4b' : '#0f172a') : null,
+          backgroundColor: isDarkTheme ? (note.color === NoteColor.TECH ? '#020617' : note.color === NoteColor.GALAXY ? '#1e1b4b' : '#0f172a') : (note.color === NoteColor.PAPER ? '#fefce8' : null),
           scale: 3, 
           logging: false,
           useCORS: true,
@@ -107,19 +110,35 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
           scrollY: -window.scrollY,
           scrollX: -window.scrollX,
           onclone: (clonedDoc) => {
-            const clonedCard = clonedDoc.querySelector('.sticky-note');
+            const clonedCard = clonedDoc.querySelector(`[data-share-id="${tempId}"]`) as HTMLElement;
             if (clonedCard) {
-              (clonedCard as HTMLElement).style.overflow = 'visible';
-            }
-            const titleEl = clonedDoc.querySelector('h3');
-            if (titleEl) {
-              (titleEl as HTMLElement).style.paddingTop = '10px';
-              (titleEl as HTMLElement).style.paddingBottom = '5px';
-              (titleEl as HTMLElement).style.lineHeight = '1.4';
-              (titleEl as HTMLElement).style.overflow = 'visible';
+              clonedCard.style.overflow = 'visible';
+              clonedCard.style.transform = 'none';
+              
+              const titleEl = clonedCard.querySelector('h3');
+              if (titleEl) {
+                // Removemos o 'truncate' que causa o corte por ter overflow hidden
+                titleEl.classList.remove('truncate');
+                titleEl.style.overflow = 'visible';
+                titleEl.style.whiteSpace = 'normal';
+                titleEl.style.display = 'block';
+                titleEl.style.lineHeight = '1.6'; // Aumentamos para garantir que acentos não cortem
+                titleEl.style.paddingBottom = '10px'; // Espaço extra de segurança
+                titleEl.style.height = 'auto';
+              }
+
+              // Ajustamos o parágrafo também para não cortar texto
+              const contentEl = clonedCard.querySelector('p');
+              if (contentEl) {
+                contentEl.classList.remove('line-clamp-6');
+                contentEl.style.overflow = 'visible';
+              }
             }
           }
         });
+
+        // Limpamos o atributo após a captura
+        cardRef.current.removeAttribute('data-share-id');
 
         const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
         
