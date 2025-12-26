@@ -1,4 +1,3 @@
-
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { defineConfig, loadEnv } from 'vite';
@@ -24,6 +23,9 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      build: {
+        chunkSizeWarningLimit: 1000, // Aumenta o limite para 1MB para silenciar avisos
       }
     };
 });
