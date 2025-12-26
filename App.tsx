@@ -15,7 +15,7 @@ const translations = {
     newNote: "NOVA NOTA",
     timeline: "Linha do Tempo",
     viewAll: "Ver Tudo",
-    todayInsight: "Dica de hoje",
+    todayInsight: "Insight do Dia",
     noNotes: "Nada por aqui",
     noNotesDesc: "Sua galeria está vazia.",
     startWriting: "Começar a Escrever",
@@ -110,7 +110,7 @@ const App: React.FC = () => {
     }
   }, [loadNotes]);
 
-  // Sistema de Alarme (Checagem a cada 30 segundos)
+  // Sistema de Alarme
   useEffect(() => {
     const checkReminders = () => {
       const now = new Date();
@@ -205,6 +205,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-transparent pb-24 md:pb-0">
+      {/* SIDEBAR DESKTOP */}
       <aside className="hidden md:flex w-64 lg:w-72 bg-white/60 backdrop-blur-xl border-r p-6 flex-col gap-6 z-20">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -254,6 +255,7 @@ const App: React.FC = () => {
         </div>
       </aside>
 
+      {/* CONTEÚDO PRINCIPAL */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="px-6 py-4 md:py-6 md:px-10 flex flex-col md:flex-row items-center justify-between gap-4 sticky top-0 z-30 bg-white/40 backdrop-blur-md border-b">
           <div className="flex items-center justify-between w-full md:hidden mb-2">
@@ -283,21 +285,53 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        <div className="px-6 md:px-10 pt-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">{t.timeline}</h2>
-            <button onClick={() => setSelectedDate(null)} className={`text-[10px] font-bold uppercase transition-colors ${!selectedDate ? 'text-indigo-600' : 'text-gray-400'}`}>
-              {t.viewAll}
-            </button>
+        {/* TIMELINE E FILTROS MOBILE */}
+        <div className="px-6 md:px-10 pt-4 flex flex-col gap-4">
+          {/* Insight IA Mobile */}
+          <div className="md:hidden p-4 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-3xl text-white shadow-lg shadow-indigo-100 animate-in fade-in slide-in-from-top-2 duration-500">
+             <div className="flex items-center gap-2 mb-1.5">
+                <i className="fas fa-sparkles text-[10px] text-indigo-200"></i>
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-80">{t.todayInsight}</p>
+             </div>
+             <p className="text-xs font-semibold leading-relaxed italic">"{dailyInsight || t.loading}"</p>
           </div>
-          <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide no-scrollbar">
-            {timelineDates.map(date => (
-              <button key={date.full} onClick={() => setSelectedDate(selectedDate === date.full ? null : date.full)} className={`flex-shrink-0 w-14 h-20 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all border ${selectedDate === date.full ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100 scale-105' : 'bg-white border-gray-100 text-gray-400 hover:border-indigo-300'}`}>
-                <span className="text-[10px] font-bold uppercase tracking-tighter opacity-70">{date.weekday}</span>
-                <span className="text-lg font-black">{date.day}</span>
-                {date.isToday && <span className={`w-1 h-1 rounded-full ${selectedDate === date.full ? 'bg-white' : 'bg-indigo-500'}`}></span>}
+
+          {/* Timeline */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t.timeline}</h2>
+              <button onClick={() => setSelectedDate(null)} className={`text-[10px] font-bold uppercase transition-colors ${!selectedDate ? 'text-indigo-600' : 'text-gray-400'}`}>
+                {t.viewAll}
               </button>
-            ))}
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide no-scrollbar -mx-1 px-1">
+              {timelineDates.map(date => (
+                <button key={date.full} onClick={() => setSelectedDate(selectedDate === date.full ? null : date.full)} className={`flex-shrink-0 w-14 h-16 rounded-2xl flex flex-col items-center justify-center gap-0.5 transition-all border ${selectedDate === date.full ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100 scale-105' : 'bg-white border-gray-100 text-gray-400 hover:border-indigo-300'}`}>
+                  <span className="text-[9px] font-black uppercase tracking-tighter opacity-70">{date.weekday}</span>
+                  <span className="text-base font-black">{date.day}</span>
+                  {date.isToday && <span className={`w-1 h-1 rounded-full ${selectedDate === date.full ? 'bg-white' : 'bg-indigo-500'}`}></span>}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Filtro de Cores Mobile */}
+          <div className="md:hidden">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t.filterByColor}</p>
+              {filterColor && (
+                <button onClick={() => setFilterColor(null)} className="text-indigo-500 font-bold text-[10px] uppercase">
+                  {t.clearFilter}
+                </button>
+              )}
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide no-scrollbar -mx-1 px-1">
+               {Object.values(NoteColor).map(color => (
+                <button key={color} onClick={() => setFilterColor(filterColor === color ? null : color)} className={`flex-shrink-0 w-10 h-10 rounded-full shadow-sm transition-all active:scale-90 border-2 flex items-center justify-center ${color} ${filterColor === color ? 'border-indigo-600 scale-110 shadow-md' : 'border-transparent hover:scale-110'}`}>
+                  {filterColor === color && <i className={`fas fa-check text-[10px] ${['bg-yellow-200', 'bg-blue-200', 'bg-green-200', 'bg-pink-200', 'bg-purple-200', 'bg-orange-200', 'theme-zen', 'theme-paper'].includes(color) ? 'text-indigo-600' : 'text-white'}`}></i>}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -330,6 +364,7 @@ const App: React.FC = () => {
         </main>
       </div>
 
+      {/* MODAL CONFIGURAÇÕES */}
       {isSettingsOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[70] flex items-center justify-center p-4 animate-in fade-in duration-300">
           <div className="bg-white/90 glass-panel w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
@@ -391,14 +426,17 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* FORMULÁRIO DE NOTA */}
       {isFormOpen && (
         <NoteForm note={editingNote} language={language} onSave={handleSaveNote} onCancel={() => { setIsFormOpen(false); setEditingNote(undefined); }} />
       )}
 
+      {/* BOTÃO FLUTUANTE MOBILE */}
       <button onClick={() => { setEditingNote(undefined); setIsFormOpen(true); }} className="md:hidden fixed bottom-24 right-6 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-2xl z-40 flex items-center justify-center active:scale-90 transition-transform">
         <i className="fas fa-plus text-xl"></i>
       </button>
 
+      {/* TAB BAR MOBILE */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t px-6 py-3 flex items-center justify-around z-50">
         <button onClick={() => { setSelectedDate(null); setFilterColor(null); window.scrollTo({top: 0, behavior: 'smooth'}); }} className={`flex flex-col items-center gap-1 ${(!selectedDate && !filterColor) ? 'text-indigo-600' : 'text-gray-400'}`}>
           <i className="fas fa-home text-lg"></i>
