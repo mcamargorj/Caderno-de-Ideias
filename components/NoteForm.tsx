@@ -13,19 +13,21 @@ export const NoteForm: React.FC<NoteFormProps> = ({ note, onSave, onCancel }) =>
   const [title, setTitle] = useState(note?.title || '');
   const [content, setContent] = useState(note?.content || '');
   const [color, setColor] = useState<NoteColor>(note?.color || NoteColor.YELLOW);
+  const [date, setDate] = useState(note?.date || '');
 
   useEffect(() => {
     if (note) {
       setTitle(note.title);
       setContent(note.content);
       setColor(note.color);
+      setDate(note.date || '');
     }
   }, [note]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim()) return;
-    onSave({ title, content, color });
+    onSave({ title, content, color, date: date || undefined });
   };
 
   return (
@@ -33,7 +35,7 @@ export const NoteForm: React.FC<NoteFormProps> = ({ note, onSave, onCancel }) =>
       <div className="bg-white rounded-t-[2.5rem] md:rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in slide-in-from-bottom-full md:slide-in-from-bottom-4 duration-300 max-h-[95vh]">
         <div className="px-6 py-5 border-b flex justify-between items-center bg-gray-50/50">
           <h2 className="text-xl font-black text-gray-800 tracking-tight">
-            {note ? 'Editar Nota' : 'Nova Anotação'}
+            {note ? 'Editar Insight' : 'Novo Insight'}
           </h2>
           <button onClick={onCancel} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-400 transition-colors">
             <i className="fas fa-times text-xl"></i>
@@ -41,15 +43,26 @@ export const NoteForm: React.FC<NoteFormProps> = ({ note, onSave, onCancel }) =>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto">
-          <div>
-            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Título do Insight</label>
-            <input 
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ex: Ideia Brilhante"
-              className="w-full px-5 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all font-semibold text-slate-900 placeholder:text-slate-400"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex-1">
+              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Título</label>
+              <input 
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Ex: Ideia Brilhante"
+                className="w-full px-5 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all font-semibold text-slate-900 placeholder:text-slate-400"
+              />
+            </div>
+            <div className="w-full">
+              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Data (Opcional)</label>
+              <input 
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full px-5 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all font-semibold text-slate-900"
+              />
+            </div>
           </div>
 
           <div>

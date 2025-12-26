@@ -28,11 +28,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
       onUpdate(note.id, { content: improved });
     } catch (err: any) {
       console.error("Erro na UI:", err);
-      if (err.message === "API_KEY_MISSING") {
-        setError("Configure sua API Key no topo");
-      } else {
-        setError("Falha na IA. Tente novamente.");
-      }
+      setError("Falha na IA. Tente novamente.");
       setTimeout(() => setError(null), 3000);
     } finally {
       setIsEnhancing(false);
@@ -91,56 +87,42 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
     onDelete(note.id);
   };
 
-  const formattedDate = new Date(note.updatedAt).toLocaleDateString('pt-BR', {
+  const formattedUpdateDate = new Date(note.updatedAt).toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: 'short'
+  });
+
+  const formattedTargetDate = note.date ? new Date(note.date + 'T00:00:00').toLocaleDateString('pt-BR', {
     day: '2-digit',
     month: 'short',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+    year: 'numeric'
+  }) : null;
 
   return (
     <div 
-      className={`sticky-note w-full aspect-square ${note.color} p-6 shadow-lg relative flex flex-col cursor-pointer border border-black/5 rounded-sm`}
+      className={`sticky-note w-full aspect-square ${note.color} p-6 shadow-lg relative flex flex-col cursor-pointer border border-black/5 rounded-sm overflow-hidden`}
       onClick={() => onEdit(note)}
     >
       {/* Decorative Tape */}
       <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-16 h-8 bg-white/30 rotate-1 pointer-events-none backdrop-blur-sm"></div>
       
-      <div className="flex justify-between items-start mb-2 group/header">
+      {note.date && (
+        <div className="absolute top-4 left-6 flex items-center gap-1.5 px-2 py-0.5 bg-black/5 rounded text-[9px] font-bold text-gray-600 uppercase tracking-tighter">
+          <i className="far fa-calendar-check"></i>
+          {formattedTargetDate}
+        </div>
+      )}
+
+      <div className={`flex justify-between items-start mb-2 group/header ${note.date ? 'mt-6' : ''}`}>
         <h3 className="text-lg font-black text-gray-800 line-clamp-1 flex-1 leading-tight tracking-tight pr-2">
           {note.title || 'Insight'}
         </h3>
-        <div className="flex gap-1.5">
-          <button 
-            onClick={handleSpeak}
-            className={`w-8 h-8 flex items-center justify-center rounded-full transition-all active:scale-90 ${isSpeaking ? 'bg-indigo-500 text-white shadow-sm' : 'hover:bg-black/10 text-gray-600'}`}
-            title="Ouvir Nota"
-          >
-            <i className={`fas ${isSpeaking ? 'fa-volume-up animate-pulse' : 'fa-volume-low'} text-sm`}></i>
+        <div className="flex gap-1">
+          <button onClick={handleSpeak} className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${isSpeaking ? 'bg-indigo-500 text-white' : 'hover:bg-black/10 text-gray-600'}`}>
+            <i className={`fas ${isSpeaking ? 'fa-volume-up animate-pulse' : 'fa-volume-low'} text-xs`}></i>
           </button>
-          
-          <button 
-            onClick={handleCopy}
-            className={`w-8 h-8 flex items-center justify-center rounded-full transition-all active:scale-90 ${isCopied ? 'bg-green-500 text-white shadow-sm' : 'hover:bg-black/10 text-gray-600'}`}
-            title="Copiar texto"
-          >
-            <i className={`fas ${isCopied ? 'fa-check' : 'fa-copy'} text-sm`}></i>
-          </button>
-
-          <button 
-            onClick={handleShare}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/10 text-gray-600 transition-all active:scale-90"
-            title="Compartilhar"
-          >
-            <i className="fas fa-share-nodes text-sm"></i>
-          </button>
-
-          <button 
-            onClick={handleDelete}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-500 hover:text-white text-gray-400 transition-all active:scale-90"
-            title="Excluir"
-          >
-            <i className="fas fa-trash-can text-sm"></i>
+          <button onClick={handleDelete} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-500 hover:text-white text-gray-400 transition-all">
+            <i className="fas fa-trash-can text-xs"></i>
           </button>
         </div>
       </div>
@@ -151,16 +133,21 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onEdit, onDelete, onUp
 
       <div className="mt-4 flex flex-col gap-2">
         <div className="flex justify-between items-center text-[10px] text-gray-500 font-bold border-t border-black/10 pt-3 uppercase tracking-wider">
-          <span className={error ? 'text-red-600 animate-pulse' : ''}>{error || formattedDate}</span>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className={`h-7 px-3 text-[10px] font-black rounded-lg transition-transform active:scale-95 ${isEnhancing ? 'bg-indigo-600 text-white' : 'bg-black/5 hover:bg-black/10 text-slate-700'}`}
-            onClick={handleEnhance}
-            isLoading={isEnhancing}
-          >
-            {isEnhancing ? 'MELHORANDO...' : <><i className="fas fa-wand-magic-sparkles mr-1.5"></i> IA</>}
-          </Button>
+          <span className={error ? 'text-red-600 animate-pulse' : ''}>{error || `Atu: ${formattedUpdateDate}`}</span>
+          <div className="flex gap-2">
+             <button onClick={handleShare} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-black/10 text-gray-600">
+               <i className="fas fa-share-nodes text-xs"></i>
+             </button>
+             <Button 
+                variant="ghost" 
+                size="sm" 
+                className={`h-7 px-3 text-[10px] font-black rounded-lg transition-transform active:scale-95 ${isEnhancing ? 'bg-indigo-600 text-white' : 'bg-black/5 hover:bg-black/10 text-slate-700'}`}
+                onClick={handleEnhance}
+                isLoading={isEnhancing}
+              >
+                {isEnhancing ? '...' : <><i className="fas fa-wand-magic-sparkles mr-1"></i> IA</>}
+              </Button>
+          </div>
         </div>
       </div>
     </div>

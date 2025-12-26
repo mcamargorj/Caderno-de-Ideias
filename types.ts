@@ -13,6 +13,7 @@ export interface Note {
   title: string;
   content: string;
   color: NoteColor;
+  date?: string; // Formato YYYY-MM-DD
   createdAt: number;
   updatedAt: number;
 }

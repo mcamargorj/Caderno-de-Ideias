@@ -15,6 +15,7 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [dailyInsight, setDailyInsight] = useState("Sua produtividade começa aqui.");
   const [filterColor, setFilterColor] = useState<NoteColor | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null); // YYYY-MM-DD
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [isLogoSpinning, setIsLogoSpinning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -36,9 +37,15 @@ const App: React.FC = () => {
   }, [loadNotes]);
 
   const filteredNotes = useMemo(() => {
-    if (!filterColor) return notes;
-    return notes.filter(n => n.color === filterColor);
-  }, [notes, filterColor]);
+    let result = notes;
+    if (filterColor) {
+      result = result.filter(n => n.color === filterColor);
+    }
+    if (selectedDate) {
+      result = result.filter(n => n.date === selectedDate);
+    }
+    return result;
+  }, [notes, filterColor, selectedDate]);
 
   const handleSaveNote = (data: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>) => {
     if (editingNote) {
@@ -80,46 +87,60 @@ const App: React.FC = () => {
         alert("Notas restauradas com sucesso!");
         loadNotes();
       } else {
-        alert("Falha ao importar arquivo. Verifique se o formato está correto.");
+        alert("Falha ao importar arquivo.");
       }
     }
-    e.target.value = ''; // Reset input
+    e.target.value = '';
   };
+
+  // Gerador de datas para a Timeline (7 dias a partir de hoje)
+  const timelineDates = useMemo(() => {
+    const dates = [];
+    for (let i = -2; i < 12; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      dates.push({
+        full: d.toISOString().split('T')[0],
+        day: d.toLocaleDateString('pt-BR', { day: '2-digit' }),
+        weekday: d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', ''),
+        isToday: d.toISOString().split('T')[0] === new Date().toISOString().split('T')[0]
+      });
+    }
+    return dates;
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-transparent pb-24 md:pb-0">
-      {/* Sidebar - Desktop Only */}
+      {/* Sidebar - Desktop */}
       <aside className="hidden md:flex w-64 lg:w-72 bg-white/60 backdrop-blur-xl border-r p-6 flex-col gap-6 z-20">
         <div className="flex items-center gap-3">
-          <div 
-            className="w-10 h-10 flex items-center justify-center cursor-pointer transition-transform active:scale-95"
-            onClick={triggerLogoSpin}
-          >
-            <img 
-              src="https://portalmschelp.pythonanywhere.com/static/images/site/img/logo.png" 
-              alt="Logo" 
-              className={`w-10 h-10 object-contain ${isLogoSpinning ? 'animate-spin-once' : ''}`}
-            />
+          <div className="w-10 h-10 flex items-center justify-center cursor-pointer transition-transform active:scale-95" onClick={triggerLogoSpin}>
+            <img src="https://portalmschelp.pythonanywhere.com/static/images/site/img/logo.png" alt="Logo" className={`w-10 h-10 object-contain ${isLogoSpinning ? 'animate-spin-once' : ''}`} />
           </div>
-          <div onClick={triggerLogoSpin} className="cursor-pointer select-none">
-            <h1 className="text-sm font-black text-gray-900 leading-tight uppercase tracking-tight">Caderno de</h1>
+          <div>
+            <h1 className="text-sm font-black text-gray-900 leading-tight uppercase">Caderno de</h1>
             <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-[0.2em]">INSIGHTS</p>
           </div>
         </div>
 
         <nav className="flex flex-col gap-1.5">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-2 px-3">Navegação</p>
+          <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 px-3">Modos de Visualização</p>
           <button 
-            onClick={() => setFilterColor(null)}
-            className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all font-semibold text-sm ${!filterColor ? 'bg-indigo-50 text-indigo-600 shadow-sm shadow-indigo-100' : 'text-gray-500 hover:bg-gray-100'}`}
+            onClick={() => { setFilterColor(null); setSelectedDate(null); }}
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all font-semibold text-sm ${(!filterColor && !selectedDate) ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}
           >
-            <i className="fas fa-layer-group"></i> Todas as Notas
-            <span className="ml-auto text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">{notes.length}</span>
+            <i className="fas fa-layer-group"></i> Todos os Insights
+          </button>
+          <button 
+            onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all font-semibold text-sm ${selectedDate === new Date().toISOString().split('T')[0] ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}
+          >
+            <i className="fas fa-calendar-day"></i> Planejamento Hoje
           </button>
         </nav>
 
         <div>
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-3 px-3">Filtrar por Cor</p>
+          <p className="text-[10px] font-bold text-gray-400 uppercase mb-3 px-3">Filtrar por Cor</p>
           <div className="grid grid-cols-4 gap-2 px-3">
             {Object.values(NoteColor).map(color => (
               <button
@@ -132,60 +153,31 @@ const App: React.FC = () => {
         </div>
 
         <div>
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-3 px-3">Segurança dos Dados</p>
+          <p className="text-[10px] font-bold text-gray-400 uppercase mb-3 px-3">Backup</p>
           <div className="flex flex-col gap-2 px-1">
-            <button 
-              onClick={handleExport}
-              className="flex items-center gap-2 px-3 py-2 text-[11px] font-bold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <i className="fas fa-download text-indigo-500"></i> EXPORTAR NOTAS
+            <button onClick={handleExport} className="flex items-center gap-2 px-3 py-2 text-[11px] font-bold text-gray-600 hover:bg-gray-100 rounded-lg">
+              <i className="fas fa-download text-indigo-500"></i> EXPORTAR
             </button>
-            <button 
-              onClick={handleImportClick}
-              className="flex items-center gap-2 px-3 py-2 text-[11px] font-bold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <i className="fas fa-upload text-indigo-500"></i> RESTAURAR NOTAS
+            <button onClick={handleImportClick} className="flex items-center gap-2 px-3 py-2 text-[11px] font-bold text-gray-600 hover:bg-gray-100 rounded-lg">
+              <i className="fas fa-upload text-indigo-500"></i> RESTAURAR
             </button>
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleFileChange} 
-              accept=".json" 
-              className="hidden" 
-            />
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" />
           </div>
         </div>
 
-        <div className="mt-auto space-y-4">
-          <div className="p-4 bg-indigo-600 rounded-2xl text-white shadow-xl shadow-indigo-200 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-16 h-16 bg-white/10 rounded-full -mr-8 -mt-8 transition-transform group-hover:scale-150"></div>
-            <p className="text-[10px] font-bold opacity-80 uppercase mb-2">Insight da IA</p>
-            <p className="text-xs font-medium leading-relaxed italic">"{dailyInsight}"</p>
-          </div>
-          
-          <div className="px-3 py-2 bg-gray-100/50 rounded-xl border border-dashed border-gray-300">
-            <div className="flex items-center gap-2 mb-1 text-gray-500">
-              <i className="fas fa-database text-[10px]"></i>
-              <span className="text-[9px] font-bold uppercase tracking-wider">Armazenamento Local</span>
-            </div>
-            <p className="text-[9px] text-gray-400 leading-tight">
-              Dados salvos apenas neste navegador. Use os botões acima para exportar uma cópia de suas notas.
-            </p>
-          </div>
+        <div className="mt-auto p-4 bg-indigo-600 rounded-2xl text-white shadow-xl">
+           <p className="text-[10px] font-bold opacity-80 uppercase mb-2">Insight da IA</p>
+           <p className="text-xs font-medium leading-relaxed italic">"{dailyInsight}"</p>
         </div>
       </aside>
 
-      {/* Main Content Area */}
+      {/* Main Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="px-6 py-4 md:py-6 md:px-10 flex flex-col md:flex-row items-center justify-between gap-4 sticky top-0 z-30 bg-white/40 backdrop-blur-md border-b md:border-none">
+        <header className="px-6 py-4 md:py-6 md:px-10 flex flex-col md:flex-row items-center justify-between gap-4 sticky top-0 z-30 bg-white/40 backdrop-blur-md border-b">
           <div className="flex items-center justify-between w-full md:hidden mb-2">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={triggerLogoSpin}>
-              <img 
-                src="https://portalmschelp.pythonanywhere.com/static/images/site/img/logo.png" 
-                className={`w-8 h-8 object-contain ${isLogoSpinning ? 'animate-spin-once' : ''}`} 
-                alt="Logo" 
-              />
-              <span className="font-black text-gray-900 text-sm tracking-tight">Caderno de Insights</span>
+            <div className="flex items-center gap-2" onClick={triggerLogoSpin}>
+              <img src="https://portalmschelp.pythonanywhere.com/static/images/site/img/logo.png" className="w-8 h-8 object-contain" alt="Logo" />
+              <span className="font-black text-gray-900 text-sm tracking-tight uppercase">Insights</span>
             </div>
             <button onClick={() => setIsSearchActive(!isSearchActive)} className="p-2 text-gray-500">
               <i className={`fas ${isSearchActive ? 'fa-times' : 'fa-search'}`}></i>
@@ -193,33 +185,59 @@ const App: React.FC = () => {
           </div>
 
           <div className={`flex-1 max-w-2xl w-full relative group ${!isSearchActive && 'hidden md:block'}`}>
-            <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors"></i>
+            <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
             <input 
               type="text"
-              placeholder="Pesquisar nos seus insights..."
+              placeholder="Pesquisar insights ou tarefas..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl shadow-sm focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none text-sm font-medium text-slate-900 placeholder:text-slate-400"
+              className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl shadow-sm focus:border-indigo-500 transition-all outline-none text-sm font-medium"
             />
           </div>
 
           <div className="hidden md:flex items-center gap-4">
-            <Button 
-              variant="primary" 
-              className="rounded-2xl shadow-indigo-200 shadow-xl px-8 font-black text-sm h-12"
-              onClick={() => {
-                setEditingNote(undefined);
-                setIsFormOpen(true);
-              }}
-            >
+            <Button variant="primary" className="rounded-2xl shadow-xl px-8 font-black text-sm h-12" onClick={() => { setEditingNote(undefined); setIsFormOpen(true); }}>
               <i className="fas fa-plus mr-3 text-xs"></i> NOVA NOTA
             </Button>
           </div>
         </header>
 
-        {/* IA Insight Mobile - Restaurado conforme solicitado */}
+        {/* Timeline Horizontal - Componente de Calendário Moderno */}
+        <div className="px-6 md:px-10 pt-4 overflow-hidden">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">Linha do Tempo</h2>
+            <button 
+              onClick={() => setSelectedDate(null)}
+              className={`text-[10px] font-bold uppercase ${!selectedDate ? 'text-indigo-600' : 'text-gray-400 hover:text-indigo-500'}`}
+            >
+              Ver Tudo
+            </button>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide no-scrollbar">
+            {timelineDates.map(date => (
+              <button
+                key={date.full}
+                onClick={() => setSelectedDate(selectedDate === date.full ? null : date.full)}
+                className={`flex-shrink-0 w-14 h-20 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all border ${
+                  selectedDate === date.full 
+                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100 scale-105' 
+                    : 'bg-white border-gray-100 text-gray-400 hover:border-indigo-300'
+                }`}
+              >
+                <span className="text-[10px] font-bold uppercase tracking-tighter opacity-70">{date.weekday}</span>
+                <span className="text-lg font-black">{date.day}</span>
+                {date.isToday && <span className={`w-1 h-1 rounded-full ${selectedDate === date.full ? 'bg-white' : 'bg-indigo-500'}`}></span>}
+              </button>
+            ))}
+            <div className="flex-shrink-0 w-14 h-20 rounded-2xl border border-dashed border-gray-300 flex items-center justify-center text-gray-300">
+               <i className="fas fa-ellipsis-h"></i>
+            </div>
+          </div>
+        </div>
+
+        {/* IA Insight Mobile */}
         <div className="md:hidden px-6 mt-2">
-          <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 animate-in fade-in slide-in-from-top-2 duration-500">
+          <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
             <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">Dica de hoje</p>
             <p className="text-xs text-indigo-900 leading-tight italic">"{dailyInsight}"</p>
           </div>
@@ -228,11 +246,11 @@ const App: React.FC = () => {
         <main className="flex-1 px-6 md:px-10 py-6">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-              <i className="fas fa-circle-notch fa-spin text-4xl mb-4 text-indigo-400"></i>
-              <p className="font-bold tracking-tighter uppercase">Carregando Notas...</p>
+              <i className="fas fa-circle-notch fa-spin text-4xl mb-4"></i>
+              <p className="font-bold uppercase">Carregando...</p>
             </div>
           ) : filteredNotes.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6 md:gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6 md:gap-8 animate-in fade-in duration-700">
               {filteredNotes.map(note => (
                 <NoteCard 
                   key={note.id} 
@@ -244,76 +262,45 @@ const App: React.FC = () => {
               ))}
             </div>
           ) : (
-            <div className="h-[60vh] flex items-center justify-center">
-              <div className="glass-panel p-8 md:p-12 rounded-[2rem] md:rounded-[3rem] text-center max-w-sm shadow-2xl relative">
-                <div className="w-16 h-16 md:w-24 md:h-24 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-500 mx-auto mb-6">
-                  <i className="fas fa-feather-pointed text-2xl md:text-4xl"></i>
+            <div className="h-[40vh] flex items-center justify-center">
+              <div className="text-center max-w-xs">
+                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mx-auto mb-4">
+                  <i className="fas fa-calendar-xmark text-2xl"></i>
                 </div>
-                <h3 className="text-xl md:text-2xl font-black text-gray-800 mb-2 tracking-tight">O papel está em branco</h3>
-                <p className="text-gray-500 text-xs md:text-sm font-medium leading-relaxed mb-6">
-                  Suas ideias são privadas e armazenadas localmente. Não esqueça de exportar suas notas ocasionalmente!
+                <h3 className="text-lg font-black text-gray-800 mb-1">Nada por aqui</h3>
+                <p className="text-gray-400 text-xs font-medium">
+                  {selectedDate ? `Nenhum insight para o dia ${new Date(selectedDate + 'T00:00:00').toLocaleDateString()}.` : 'Sua galeria está vazia.'}
                 </p>
-                <div className="flex flex-col gap-3">
-                  <Button variant="primary" className="rounded-2xl px-8" onClick={() => setIsFormOpen(true)}>
-                    Escrever Agora
-                  </Button>
-                  <button onClick={handleImportClick} className="text-indigo-600 font-bold text-xs uppercase tracking-widest hover:underline mt-2">
-                    Ou restaurar notas existentes
-                  </button>
-                </div>
+                <Button variant="ghost" className="mt-4 text-xs font-bold text-indigo-600" onClick={() => setIsFormOpen(true)}>
+                  Começar a Escrever
+                </Button>
               </div>
             </div>
           )}
         </main>
       </div>
 
-      <button 
-        onClick={() => {
-          setEditingNote(undefined);
-          setIsFormOpen(true);
-        }}
-        className="md:hidden fixed bottom-24 right-6 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-2xl shadow-indigo-300 z-40 flex items-center justify-center active:scale-90 transition-transform"
-      >
+      <button onClick={() => { setEditingNote(undefined); setIsFormOpen(true); }} className="md:hidden fixed bottom-24 right-6 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-2xl z-40 flex items-center justify-center active:scale-90 transition-transform">
         <i className="fas fa-plus text-xl"></i>
       </button>
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t px-6 py-3 flex items-center justify-around z-50">
-        <button 
-          onClick={() => { setFilterColor(null); window.scrollTo({top: 0, behavior: 'smooth'}); }}
-          className={`flex flex-col items-center gap-1 ${!filterColor ? 'text-indigo-600' : 'text-gray-400'}`}
-        >
+        <button onClick={() => { setSelectedDate(null); setFilterColor(null); window.scrollTo({top: 0, behavior: 'smooth'}); }} className={`flex flex-col items-center gap-1 ${(!selectedDate && !filterColor) ? 'text-indigo-600' : 'text-gray-400'}`}>
           <i className="fas fa-home text-lg"></i>
-          <span className="text-[10px] font-bold">Home</span>
+          <span className="text-[10px] font-bold">Início</span>
         </button>
-        
-        <div className="flex gap-4">
-          {Object.values(NoteColor).slice(0, 4).map(color => (
-            <button
-              key={color}
-              onClick={() => setFilterColor(filterColor === color ? null : color)}
-              className={`w-6 h-6 rounded-full border-2 ${color} ${filterColor === color ? 'border-indigo-600' : 'border-transparent'}`}
-            />
-          ))}
-        </div>
-
-        <button 
-          onClick={handleExport}
-          className="flex flex-col items-center gap-1 text-gray-400"
-        >
-          <i className="fas fa-download text-lg"></i>
-          <span className="text-[10px] font-bold">Exportar</span>
+        <button onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])} className={`flex flex-col items-center gap-1 ${selectedDate === new Date().toISOString().split('T')[0] ? 'text-indigo-600' : 'text-gray-400'}`}>
+          <i className="fas fa-calendar-check text-lg"></i>
+          <span className="text-[10px] font-bold">Hoje</span>
+        </button>
+        <button onClick={handleExport} className="flex flex-col items-center gap-1 text-gray-400">
+          <i className="fas fa-cloud-arrow-down text-lg"></i>
+          <span className="text-[10px] font-bold">Backup</span>
         </button>
       </nav>
 
       {isFormOpen && (
-        <NoteForm 
-          note={editingNote}
-          onSave={handleSaveNote}
-          onCancel={() => {
-            setIsFormOpen(false);
-            setEditingNote(undefined);
-          }}
-        />
+        <NoteForm note={editingNote} onSave={handleSaveNote} onCancel={() => { setIsFormOpen(false); setEditingNote(undefined); }} />
       )}
     </div>
   );
