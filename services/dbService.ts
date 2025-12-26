@@ -36,10 +36,9 @@ export const storageService = {
   },
 
   // Auth
-  signInWithGoogle: async (): Promise<void> => {
+  signInWithGoogle: async (): Promise<{error: any}> => {
     if (!supabase) {
-      alert("Configuração do Supabase incompleta. Verifique as variáveis de ambiente na Vercel.");
-      return;
+      return { error: new Error("Configuração do Supabase incompleta.") };
     }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -51,7 +50,7 @@ export const storageService = {
         },
       }
     });
-    if (error) console.error("Erro no login:", error);
+    return { error };
   },
 
   signOut: async () => {

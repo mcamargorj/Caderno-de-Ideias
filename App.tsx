@@ -40,7 +40,8 @@ const translations = {
     connectGoogle: "CONECTAR COM GOOGLE",
     signOut: "Sair da Conta",
     syncStatus: "Sincronizado via Supabase",
-    migrating: "Sincronizando com a nuvem..."
+    migrating: "Sincronizando com a nuvem...",
+    loginError: "Erro ao conectar com Google. Verifique se o provedor está ativado no Supabase."
   },
   [Language.EN]: {
     appTitle: "Insight",
@@ -74,7 +75,8 @@ const translations = {
     connectGoogle: "CONNECT WITH GOOGLE",
     signOut: "Sign Out",
     syncStatus: "Synced via Supabase",
-    migrating: "Syncing with cloud..."
+    migrating: "Syncing with cloud...",
+    loginError: "Error connecting with Google. Check if the provider is enabled in Supabase."
   }
 };
 
@@ -93,6 +95,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [isLogoSpinning, setIsLogoSpinning] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
   const notifiedNotesRef = useRef<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -126,6 +129,7 @@ const App: React.FC = () => {
     const unsubscribeAuth = storageService.onAuthStateChanged((loggedUser) => {
       setUser(loggedUser);
       if (loggedUser) {
+        setLoginError(null);
         const localNotes = storageService.getStorage().notes;
         if (localNotes.length > 0) {
           setIsSyncing(true);
@@ -182,7 +186,12 @@ const App: React.FC = () => {
   };
 
   const handleLogin = async () => {
-    await storageService.signInWithGoogle();
+    setLoginError(null);
+    const { error } = await storageService.signInWithGoogle();
+    if (error) {
+      console.error("Erro no login:", error);
+      setLoginError(t.loginError);
+    }
   };
 
   const handleLogout = async () => {
@@ -266,9 +275,12 @@ const App: React.FC = () => {
               </div>
             </div>
           ) : (
-            <Button variant="secondary" className="w-full h-12 rounded-2xl text-[10px] font-black shadow-sm" onClick={handleLogin}>
-              <i className="fab fa-google mr-2 text-indigo-500"></i> {t.connectGoogle}
-            </Button>
+            <div className="space-y-2">
+              <Button variant="secondary" className="w-full h-12 rounded-2xl text-[10px] font-black shadow-sm" onClick={handleLogin}>
+                <i className="fab fa-google mr-2 text-indigo-500"></i> {t.connectGoogle}
+              </Button>
+              {loginError && <p className="text-[9px] text-red-500 font-bold uppercase text-center px-2">{loginError}</p>}
+            </div>
           )}
         </div>
 
@@ -424,9 +436,12 @@ const App: React.FC = () => {
                 <div>
                   <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-5">Sincronização Cloud</label>
                   {!user ? (
-                    <Button variant="secondary" className="w-full h-16 rounded-3xl text-sm font-black border-2 border-indigo-100 hover:border-indigo-300 shadow-sm" onClick={handleLogin}>
-                      <i className="fab fa-google mr-3 text-indigo-500 text-xl"></i> {t.connectGoogle}
-                    </Button>
+                    <div className="space-y-3">
+                      <Button variant="secondary" className="w-full h-16 rounded-3xl text-sm font-black border-2 border-indigo-100 hover:border-indigo-300 shadow-sm" onClick={handleLogin}>
+                        <i className="fab fa-google mr-3 text-indigo-500 text-xl"></i> {t.connectGoogle}
+                      </Button>
+                      {loginError && <p className="text-[10px] text-red-500 font-bold uppercase text-center">{loginError}</p>}
+                    </div>
                   ) : (
                     <div className="p-5 bg-indigo-50/50 border-2 border-indigo-100 rounded-3xl flex items-center justify-between">
                       <div className="flex items-center gap-4">
