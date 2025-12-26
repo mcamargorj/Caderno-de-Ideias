@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Note, NoteColor, Language } from '../types.ts';
-import { Button } from './Button.tsx';
+import { Note, NoteColor, Language } from '../types';
+import { Button } from './Button';
 
 interface NoteFormProps {
   note?: Note;

@@ -1,8 +1,8 @@
 
 import React, { useState, useRef } from 'react';
-import { Note, Language, NoteColor } from '../types.ts';
-import { Button } from './Button.tsx';
-import { geminiService } from '../services/geminiService.ts';
+import { Note, Language, NoteColor } from '../types';
+import { Button } from './Button';
+import { geminiService } from '../services/geminiService';
 import html2canvas from 'html2canvas';
 
 interface NoteCardProps {

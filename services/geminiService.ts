@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Modality } from "@google/genai";
-import { Language } from "../types.ts";
+import { Language } from "../types";
 
 // Helper: Decodifica base64 para Uint8Array
 function decode(base64: string) {

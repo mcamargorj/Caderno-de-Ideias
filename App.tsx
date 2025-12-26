@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Note, NoteColor, Language } from './types.ts';
-import { storageService } from './services/dbService.ts';
-import { NoteCard } from './components/NoteCard.tsx';
-import { NoteForm } from './components/NoteForm.tsx';
-import { Button } from './components/Button.tsx';
-import { geminiService } from './services/geminiService.ts';
+import { Note, NoteColor, Language } from './types';
+import { storageService } from './services/dbService';
+import { NoteCard } from './components/NoteCard';
+import { NoteForm } from './components/NoteForm';
+import { Button } from './components/Button';
+import { geminiService } from './services/geminiService';
 
 // Map de Traduções
 const translations = {

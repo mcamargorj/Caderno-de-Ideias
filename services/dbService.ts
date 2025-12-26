@@ -1,5 +1,5 @@
 
-import { Note, StorageState } from '../types.ts';
+import { Note, StorageState } from '../types';
 
 const STORAGE_KEY = 'notas_rapidas_storage';
 
@@ -93,7 +93,7 @@ export const storageService = {
       const imported = JSON.parse(text) as StorageState;
       
       // Validação básica
-      if (Array.isArray(imported.notes)) {
+      if (imported && Array.isArray(imported.notes)) {
         storageService.saveStorage(imported);
         return true;
       }
