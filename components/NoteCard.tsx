@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Note, Language } from '../types.ts';
 import { Button } from './Button.tsx';
 import { geminiService } from '../services/geminiService.ts';
+import html2canvas from 'html2canvas';
 
 interface NoteCardProps {
   note: Note;
@@ -15,7 +16,9 @@ interface NoteCardProps {
 export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDelete, onUpdate }) => {
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const handleEnhance = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -51,20 +54,55 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const shareData = {
-      title: note.title || 'Insight',
-      text: note.content,
-    };
+    if (isSharing) return;
+    setIsSharing(true);
 
-    if (navigator.share) {
-      try {
-        await navigator.share(shareData);
-      } catch (err) {
-        if ((err as Error).name !== 'AbortError') console.error("Erro share:", err);
+    const formattedTargetDate = note.date ? new Date(note.date + 'T00:00:00').toLocaleDateString(language, {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    }) : null;
+
+    try {
+      if (cardRef.current) {
+        // Opção 1: Tentar compartilhar como IMAGEM (Visualmente rico)
+        const canvas = await html2canvas(cardRef.current, {
+          backgroundColor: null,
+          scale: 2, // Melhor qualidade
+          logging: false,
+          useCORS: true
+        });
+
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+        
+        if (blob && navigator.canShare && navigator.canShare({ files: [new File([blob], 'insight.png', { type: 'image/png' })] })) {
+          const file = new File([blob], `insight-${note.id.substring(0, 5)}.png`, { type: 'image/png' });
+          await navigator.share({
+            files: [file],
+            title: note.title || 'Insight',
+            text: note.content.substring(0, 100) + '...'
+          });
+        } else {
+          // Fallback: Se não puder compartilhar arquivo, compartilha texto estruturado
+          const textToShare = `${note.title ? `[${note.title.toUpperCase()}]\n` : ''}${formattedTargetDate ? `📅 ${formattedTargetDate}\n` : ''}---\n${note.content}\n---\nEnviado via Caderno de Insights`;
+          
+          if (navigator.share) {
+            await navigator.share({
+              title: note.title || 'Insight',
+              text: textToShare,
+            });
+          } else {
+            await navigator.clipboard.writeText(textToShare);
+            alert(language === Language.PT ? "Texto formatado copiado!" : "Formatted text copied!");
+          }
+        }
       }
-    } else {
-      await navigator.clipboard.writeText(note.content);
-      alert(language === Language.PT ? "Copiado para área de transferência." : "Copied to clipboard.");
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        console.error("Erro ao compartilhar:", err);
+      }
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -81,9 +119,11 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
 
   return (
     <div 
+      ref={cardRef}
       className={`sticky-note w-full aspect-square ${note.color} p-6 shadow-lg relative flex flex-col cursor-pointer border border-black/5 rounded-sm overflow-hidden`}
       onClick={() => onEdit(note)}
     >
+      {/* Decorative Tape */}
       <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-16 h-8 bg-white/30 rotate-1 pointer-events-none backdrop-blur-sm"></div>
       
       {note.date && (
@@ -115,8 +155,12 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
         <div className="flex justify-between items-center text-[10px] text-gray-500 font-bold border-t border-black/10 pt-3 uppercase tracking-wider">
           <span className={error ? 'text-red-600 animate-pulse' : ''}>{error || (language === Language.PT ? `Atu: ${formattedUpdateDate}` : `Upd: ${formattedUpdateDate}`)}</span>
           <div className="flex gap-2">
-             <button onClick={handleShare} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-black/10 text-gray-600">
-               <i className="fas fa-share-nodes text-xs"></i>
+             <button 
+                onClick={handleShare} 
+                disabled={isSharing}
+                className={`w-7 h-7 flex items-center justify-center rounded-full hover:bg-black/10 text-gray-600 transition-all ${isSharing ? 'opacity-50 scale-90' : ''}`}
+             >
+               <i className={`fas ${isSharing ? 'fa-spinner fa-spin' : 'fa-share-nodes'} text-xs`}></i>
              </button>
              <Button 
                 variant="ghost" 
