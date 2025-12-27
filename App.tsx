@@ -446,8 +446,8 @@ const App: React.FC = () => {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t.filterByColor}</h2>
               {filterColor && (
-                <button onClick={() => setFilterColor(null)} className="text-indigo-600 text-[10px] font-black uppercase">
-                   {t.clearFilter}
+                <button onClick={() => setFilterColor(null)} className="text-indigo-600 hover:text-indigo-800 transition-all p-1">
+                   <i className="fas fa-filter-circle-xmark text-lg"></i>
                 </button>
               )}
             </div>
