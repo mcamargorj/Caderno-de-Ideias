@@ -41,7 +41,7 @@ const translations = {
     signOut: "Sair da Conta",
     syncStatus: "Sincronizado via Supabase",
     migrating: "Sincronizando com a nuvem...",
-    loginError: "Erro ao conectar com Google. Verifique se o provedor está ativado no Supabase."
+    loginError: "Erro de autenticação"
   },
   [Language.EN]: {
     appTitle: "Insight",
@@ -76,7 +76,7 @@ const translations = {
     signOut: "Sign Out",
     syncStatus: "Synced via Supabase",
     migrating: "Syncing with cloud...",
-    loginError: "Error connecting with Google. Check if the provider is enabled in Supabase."
+    loginError: "Authentication error"
   }
 };
 
@@ -88,6 +88,7 @@ const App: React.FC = () => {
   const [editingNote, setEditingNote] = useState<Note | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [dailyInsight, setDailyInsight] = useState("");
   const [filterColor, setFilterColor] = useState<NoteColor | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -97,7 +98,6 @@ const App: React.FC = () => {
   const [isLogoSpinning, setIsLogoSpinning] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const notifiedNotesRef = useRef<Set<string>>(new Set());
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const t = translations[language];
 
@@ -123,11 +123,25 @@ const App: React.FC = () => {
   }, [user]);
 
   useEffect(() => {
+    // Verificar se há erros de autenticação na URL (comum quando o Google retorna erro)
+    const hash = window.location.hash;
+    if (hash && hash.includes('error=')) {
+      const params = new URLSearchParams(hash.substring(1));
+      const errorDescription = params.get('error_description');
+      const errorCode = params.get('error');
+      if (errorDescription || errorCode) {
+        setLoginError(`${t.loginError}: ${errorDescription?.replace(/\+/g, ' ') || errorCode}`);
+        // Limpar a URL para não ficar poluída com o erro
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+    }
+
     const storage = storageService.getStorage();
     if (storage.language) setLanguage(storage.language);
     
     const unsubscribeAuth = storageService.onAuthStateChanged((loggedUser) => {
       setUser(loggedUser);
+      setIsLoggingIn(false);
       if (loggedUser) {
         setLoginError(null);
         const localNotes = storageService.getStorage().notes;
@@ -140,13 +154,8 @@ const App: React.FC = () => {
 
     geminiService.getDailyInsight(storage.language || Language.PT).then(setDailyInsight);
     
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      if (Notification.permission === 'default') {
-        Notification.requestPermission().catch(console.warn);
-      }
-    }
     return () => { if (unsubscribeAuth) unsubscribeAuth(); };
-  }, []);
+  }, [language, t.loginError]);
 
   useEffect(() => {
     const unsubscribe = loadNotes();
@@ -187,10 +196,12 @@ const App: React.FC = () => {
 
   const handleLogin = async () => {
     setLoginError(null);
+    setIsLoggingIn(true);
     const { error } = await storageService.signInWithGoogle();
     if (error) {
       console.error("Erro no login:", error);
-      setLoginError(t.loginError);
+      setLoginError(`${t.loginError}: ${error.message || 'OAuth failure'}`);
+      setIsLoggingIn(false);
     }
   };
 
@@ -276,10 +287,10 @@ const App: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-2">
-              <Button variant="secondary" className="w-full h-12 rounded-2xl text-[10px] font-black shadow-sm" onClick={handleLogin}>
+              <Button variant="secondary" className="w-full h-12 rounded-2xl text-[10px] font-black shadow-sm" onClick={handleLogin} isLoading={isLoggingIn}>
                 <i className="fab fa-google mr-2 text-indigo-500"></i> {t.connectGoogle}
               </Button>
-              {loginError && <p className="text-[9px] text-red-500 font-bold uppercase text-center px-2">{loginError}</p>}
+              {loginError && <p className="text-[9px] text-red-500 font-bold uppercase text-center px-2 animate-pulse">{loginError}</p>}
             </div>
           )}
         </div>
@@ -368,7 +379,7 @@ const App: React.FC = () => {
 
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t.timeline}</h2>
+              <h2 className="text-xl font-black text-gray-900 tracking-tight">{t.timeline}</h2>
               <button onClick={() => setSelectedDate(null)} className={`text-[10px] font-black uppercase transition-colors ${!selectedDate ? 'text-indigo-600' : 'text-gray-400'}`}>
                 {t.viewAll}
               </button>
@@ -437,10 +448,10 @@ const App: React.FC = () => {
                   <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-5">Sincronização Cloud</label>
                   {!user ? (
                     <div className="space-y-3">
-                      <Button variant="secondary" className="w-full h-16 rounded-3xl text-sm font-black border-2 border-indigo-100 hover:border-indigo-300 shadow-sm" onClick={handleLogin}>
+                      <Button variant="secondary" className="w-full h-16 rounded-3xl text-sm font-black border-2 border-indigo-100 hover:border-indigo-300 shadow-sm" onClick={handleLogin} isLoading={isLoggingIn}>
                         <i className="fab fa-google mr-3 text-indigo-500 text-xl"></i> {t.connectGoogle}
                       </Button>
-                      {loginError && <p className="text-[10px] text-red-500 font-bold uppercase text-center">{loginError}</p>}
+                      {loginError && <p className="text-[10px] text-red-500 font-bold uppercase text-center mt-3 p-3 bg-red-50 rounded-xl border border-red-100">{loginError}</p>}
                     </div>
                   ) : (
                     <div className="p-5 bg-indigo-50/50 border-2 border-indigo-100 rounded-3xl flex items-center justify-between">

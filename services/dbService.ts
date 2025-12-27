@@ -14,10 +14,8 @@ if (supabaseUrl && supabaseAnonKey) {
   try {
     supabase = createClient(supabaseUrl, supabaseAnonKey);
   } catch (err) {
-    console.error("Erro ao inicializar cliente Supabase:", err);
+    console.error("Supabase: Erro crítico na inicialização:", err);
   }
-} else {
-  console.warn("Supabase: Variáveis de ambiente ausentes. Operando em modo LocalStorage.");
 }
 
 export const storageService = {
@@ -38,8 +36,11 @@ export const storageService = {
   // Auth
   signInWithGoogle: async (): Promise<{error: any}> => {
     if (!supabase) {
-      return { error: new Error("Configuração do Supabase incompleta.") };
+      return { error: new Error("Configuração do Supabase (URL/Key) não encontrada no ambiente.") };
     }
+    
+    console.log("Iniciando OAuth com Google... RedirectURI:", window.location.origin);
+    
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -50,6 +51,8 @@ export const storageService = {
         },
       }
     });
+
+    if (error) console.error("Erro retornado pelo Supabase no signIn:", error);
     return { error };
   },
 
@@ -63,7 +66,6 @@ export const storageService = {
       return () => {};
     }
     
-    // Check current session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         callback({
@@ -97,7 +99,6 @@ export const storageService = {
   syncWithCloud: (userId: string, callback: (notes: Note[]) => void) => {
     if (!supabase) return () => {};
 
-    // Initial fetch
     supabase
       .from('notes')
       .select('*')
@@ -107,7 +108,6 @@ export const storageService = {
         if (!error && data) callback(data as Note[]);
       });
 
-    // Realtime subscription
     const channel = supabase
       .channel(`user-notes-${userId}`)
       .on(
@@ -186,11 +186,13 @@ export const storageService = {
     const storage = storageService.getStorage();
     if (storage.notes.length === 0) return;
 
+    console.log(`Sincronizando ${storage.notes.length} notas locais para a nuvem...`);
     const notesToMigrate = storage.notes.map(n => ({ ...n, userId }));
     const { error } = await supabase.from('notes').insert(notesToMigrate);
 
     if (!error) {
       storageService.saveStorage({ ...storage, notes: [] });
+      console.log("Migração concluída com sucesso.");
     } else {
       console.error("Erro na migração Supabase:", error);
     }
