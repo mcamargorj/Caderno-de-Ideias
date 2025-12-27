@@ -39,8 +39,8 @@ const translations = {
     clearFilter: "Limpar Filtro",
     connectGoogle: "CONECTAR COM GOOGLE",
     signOut: "Sair da Conta",
-    syncStatus: "Sincronizado via Supabase",
-    migrating: "Sincronizando com a nuvem...",
+    syncStatus: "Sincronizado",
+    migrating: "Sincronizando...",
     loginError: "Erro de autenticação"
   },
   [Language.EN]: {
@@ -74,8 +74,8 @@ const translations = {
     clearFilter: "Clear Filter",
     connectGoogle: "CONNECT WITH GOOGLE",
     signOut: "Sign Out",
-    syncStatus: "Synced via Supabase",
-    migrating: "Syncing with cloud...",
+    syncStatus: "Synced",
+    migrating: "Syncing...",
     loginError: "Authentication error"
   }
 };
@@ -123,7 +123,6 @@ const App: React.FC = () => {
   }, [user]);
 
   useEffect(() => {
-    // Verificar se há erros de autenticação na URL (comum quando o Google retorna erro)
     const hash = window.location.hash;
     if (hash && hash.includes('error=')) {
       const params = new URLSearchParams(hash.substring(1));
@@ -131,7 +130,6 @@ const App: React.FC = () => {
       const errorCode = params.get('error');
       if (errorDescription || errorCode) {
         setLoginError(`${t.loginError}: ${errorDescription?.replace(/\+/g, ' ') || errorCode}`);
-        // Limpar a URL para não ficar poluída com o erro
         window.history.replaceState(null, '', window.location.pathname);
       }
     }
@@ -220,8 +218,14 @@ const App: React.FC = () => {
   const handleSaveNote = async (data: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>) => {
     if (editingNote) {
       await storageService.updateNote(editingNote.id, data, user?.uid);
+      if (!user) {
+        setNotes(prev => prev.map(n => n.id === editingNote.id ? { ...n, ...data, updatedAt: Date.now() } : n));
+      }
     } else {
-      await storageService.createNote(data, user?.uid);
+      const newNote = await storageService.createNote(data, user?.uid);
+      if (!user) {
+        setNotes(prev => [newNote, ...prev]);
+      }
       triggerLogoSpin();
     }
     setEditingNote(undefined);
@@ -230,11 +234,17 @@ const App: React.FC = () => {
 
   const handleUpdateNoteField = (id: string, updates: Partial<Note>) => {
     storageService.updateNote(id, updates, user?.uid);
+    if (!user) {
+      setNotes(prev => prev.map(n => n.id === id ? { ...n, ...updates, updatedAt: Date.now() } : n));
+    }
   };
 
   const handleDeleteNote = (id: string) => {
     if (confirm(t.deleteConfirm)) {
       storageService.deleteNote(id, user?.uid);
+      if (!user) {
+        setNotes(prev => prev.filter(n => n.id !== id));
+      }
     }
   };
 
@@ -281,7 +291,7 @@ const App: React.FC = () => {
                 <p className="text-[10px] font-black text-gray-800 truncate uppercase leading-none">{user.displayName}</p>
                 <div className="flex items-center gap-1 mt-1">
                   <i className="fas fa-bolt text-indigo-500 text-[8px]"></i>
-                  <p className="text-[8px] font-bold text-indigo-500 uppercase tracking-tighter">Supabase Sync</p>
+                  <p className="text-[8px] font-bold text-indigo-500 uppercase tracking-tighter">{t.syncStatus}</p>
                 </div>
               </div>
             </div>
