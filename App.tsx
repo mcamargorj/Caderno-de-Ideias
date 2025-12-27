@@ -98,10 +98,12 @@ const App: React.FC = () => {
   const [isLogoSpinning, setIsLogoSpinning] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const notifiedNotesRef = useRef<Set<string>>(new Set());
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const t = translations[language];
 
   const triggerLogoSpin = () => {
+    if (isLogoSpinning) return;
     setIsLogoSpinning(true);
     setTimeout(() => setIsLogoSpinning(false), 1000);
   };
@@ -248,6 +250,21 @@ const App: React.FC = () => {
     }
   };
 
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const success = await storageService.importBackup(file);
+      if (success) {
+        alert(t.importSuccess);
+        loadNotes();
+      }
+    }
+  };
+
   const timelineDates = useMemo(() => {
     const dates = [];
     for (let i = -2; i < 12; i++) {
@@ -265,12 +282,22 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-transparent pb-24 md:pb-0">
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" />
+
       {/* SIDEBAR DESKTOP */}
       <aside className="hidden md:flex w-64 lg:w-72 bg-white/60 backdrop-blur-xl border-r p-6 flex-col gap-6 z-20">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 flex items-center justify-center cursor-pointer transition-transform active:scale-95" onClick={triggerLogoSpin}>
-              <img src="https://portalmschelp.pythonanywhere.com/static/images/site/img/logo.png" alt="Logo" className={`w-10 h-10 object-contain ${isLogoSpinning ? 'animate-spin-once' : ''}`} />
+          <div className="flex items-center gap-4">
+            <div 
+              className="w-14 h-14 flex items-center justify-center cursor-pointer transition-transform active:scale-90" 
+              onClick={triggerLogoSpin}
+              onMouseEnter={triggerLogoSpin}
+            >
+              <img 
+                src="https://portalmschelp.pythonanywhere.com/static/images/site/img/logo.png" 
+                alt="Logo" 
+                className={`w-14 h-14 object-contain transition-all drop-shadow-sm ${isLogoSpinning ? 'animate-spin-once' : ''}`} 
+              />
             </div>
             <div>
               <h1 className="text-sm font-black text-gray-900 leading-tight uppercase">{t.appTitle}</h1>
@@ -345,8 +372,16 @@ const App: React.FC = () => {
       <div className="flex-1 flex flex-col min-w-0">
         <header className="px-6 py-4 md:py-6 md:px-10 flex flex-col md:flex-row items-center justify-between gap-6 sticky top-0 z-30 bg-white/40 backdrop-blur-md border-b">
           <div className="flex items-center justify-between w-full md:hidden mb-2">
-            <div className="flex items-center gap-2" onClick={triggerLogoSpin}>
-              <img src="https://portalmschelp.pythonanywhere.com/static/images/site/img/logo.png" className="w-8 h-8 object-contain" alt="Logo" />
+            <div 
+              className="flex items-center gap-3 cursor-pointer active:scale-95" 
+              onClick={triggerLogoSpin}
+              onMouseEnter={triggerLogoSpin}
+            >
+              <img 
+                src="https://portalmschelp.pythonanywhere.com/static/images/site/img/logo.png" 
+                className={`w-11 h-11 object-contain transition-all ${isLogoSpinning ? 'animate-spin-once' : ''}`} 
+                alt="Logo" 
+              />
               <span className="font-black text-gray-900 text-sm tracking-tight uppercase">{t.appSubtitle}</span>
             </div>
             <div className="flex items-center gap-2">
@@ -387,6 +422,7 @@ const App: React.FC = () => {
              <p className="text-xs font-bold leading-relaxed italic">"{dailyInsight || t.loading}"</p>
           </div>
 
+          {/* Timeline Section */}
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-black text-gray-900 tracking-tight">{t.timeline}</h2>
@@ -400,6 +436,29 @@ const App: React.FC = () => {
                   <span className="text-[9px] font-black uppercase tracking-tighter opacity-70">{date.weekday}</span>
                   <span className="text-lg font-black">{date.day}</span>
                   {date.isToday && <span className={`w-1.5 h-1.5 rounded-full ${selectedDate === date.full ? 'bg-white' : 'bg-indigo-500'}`}></span>}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Color Filter Section Mobile */}
+          <div className="md:hidden">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t.filterByColor}</h2>
+              {filterColor && (
+                <button onClick={() => setFilterColor(null)} className="text-indigo-600 text-[10px] font-black uppercase">
+                   {t.clearFilter}
+                </button>
+              )}
+            </div>
+            <div className="flex gap-4 overflow-x-auto pb-6 scrollbar-hide no-scrollbar -mx-1 px-1">
+              {Object.values(NoteColor).map(color => (
+                <button 
+                  key={color} 
+                  onClick={() => setFilterColor(filterColor === color ? null : color)} 
+                  className={`flex-shrink-0 w-10 h-10 rounded-full shadow-sm transition-all active:scale-90 border-2 flex items-center justify-center ${color} ${filterColor === color ? 'border-indigo-600 scale-110 shadow-lg' : 'border-transparent'}`}
+                >
+                  {filterColor === color && <i className={`fas fa-check text-[10px] ${['bg-yellow-200', 'bg-blue-200', 'bg-green-200', 'bg-pink-200', 'bg-purple-200', 'bg-orange-200', 'theme-zen', 'theme-paper'].includes(color) ? 'text-indigo-600' : 'text-white'}`}></i>}
                 </button>
               ))}
             </div>
@@ -453,7 +512,7 @@ const App: React.FC = () => {
               </div>
 
               <div className="space-y-10">
-                {/* Seção Cloud Supabase */}
+                {/* Seção Cloud */}
                 <div>
                   <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-5">Sincronização Cloud</label>
                   {!user ? (
@@ -493,13 +552,20 @@ const App: React.FC = () => {
 
                 <div>
                   <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-5">{t.security}</label>
-                  <div className="flex flex-col gap-4">
-                    <button onClick={() => storageService.exportBackup()} className="w-full flex items-center justify-between px-8 py-5 bg-gray-50 hover:bg-indigo-50 rounded-3xl transition-all group border-2 border-transparent hover:border-indigo-100">
-                      <div className="flex items-center gap-5">
-                        <i className="fas fa-file-export text-indigo-600 text-xl"></i>
-                        <span className="font-black text-gray-700 text-sm uppercase tracking-wider">{t.export}</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <button onClick={() => storageService.exportBackup()} className="flex items-center justify-between px-6 py-5 bg-gray-50 hover:bg-indigo-50 rounded-3xl transition-all group border-2 border-transparent hover:border-indigo-100">
+                      <div className="flex items-center gap-4">
+                        <i className="fas fa-file-export text-indigo-600 text-lg"></i>
+                        <span className="font-black text-gray-700 text-[10px] uppercase tracking-wider">{t.export}</span>
                       </div>
                       <i className="fas fa-chevron-right text-gray-300 group-hover:text-indigo-400 transition-colors"></i>
+                    </button>
+                    <button onClick={handleImportClick} className="flex items-center justify-between px-6 py-5 bg-gray-50 hover:bg-emerald-50 rounded-3xl transition-all group border-2 border-transparent hover:border-emerald-100">
+                      <div className="flex items-center gap-4">
+                        <i className="fas fa-file-import text-emerald-600 text-lg"></i>
+                        <span className="font-black text-gray-700 text-[10px] uppercase tracking-wider">{t.import}</span>
+                      </div>
+                      <i className="fas fa-chevron-right text-gray-300 group-hover:text-emerald-400 transition-colors"></i>
                     </button>
                   </div>
                 </div>
