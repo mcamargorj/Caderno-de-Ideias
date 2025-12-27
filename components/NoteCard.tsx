@@ -98,10 +98,15 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
           onclone: (clonedDoc) => {
             const clonedCard = clonedDoc.querySelector(`[data-share-id="${tempId}"]`) as HTMLElement;
             if (clonedCard) {
-              const icons = clonedCard.querySelector('.action-icons-container') as HTMLElement;
-              if (icons) icons.style.display = 'none';
-              const aiBtn = clonedCard.querySelector('.ai-button-container') as HTMLElement;
-              if (aiBtn) aiBtn.style.display = 'none';
+              // Oculta elementos que não devem aparecer na imagem compartilhada
+              const elementsToHide = clonedCard.querySelectorAll('.action-icons-container, .ai-button-container, .share-exclude');
+              elementsToHide.forEach(el => {
+                (el as HTMLElement).style.display = 'none';
+              });
+              
+              // Ajusta a borda inferior se necessário para ficar limpo
+              const footer = clonedCard.querySelector('.footer-metadata') as HTMLElement;
+              if (footer) footer.style.border = 'none';
             }
           }
         });
@@ -179,8 +184,8 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
       </p>
 
       <div className="mt-auto pt-4">
-        <div className={`flex justify-between items-center text-[10px] ${metaTextColor} font-black border-t ${isDarkTheme ? 'border-white/10' : 'border-black/10'} pt-4 uppercase tracking-widest`}>
-          <span className="truncate mr-4">{error || (language === Language.PT ? `Atu: ${formattedUpdateDate}` : `Upd: ${formattedUpdateDate}`)}</span>
+        <div className={`footer-metadata flex justify-between items-center text-[10px] ${metaTextColor} font-black border-t ${isDarkTheme ? 'border-white/10' : 'border-black/10'} pt-4 uppercase tracking-widest`}>
+          <span className="truncate mr-4 share-exclude">{error || (language === Language.PT ? `Atu: ${formattedUpdateDate}` : `Upd: ${formattedUpdateDate}`)}</span>
           <div className="ai-button-container shrink-0">
              <Button variant="ghost" size="sm" className={`h-8 px-4 text-[10px] font-black rounded-xl transition-all active:scale-95 ${isEnhancing ? 'bg-indigo-600 text-white' : isDarkTheme ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-black/5 hover:bg-black/10 text-slate-800'}`} onClick={handleEnhance} isLoading={isEnhancing}>
                 {isEnhancing ? '...' : <><i className="fas fa-wand-magic-sparkles mr-2"></i> IA</>}

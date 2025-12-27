@@ -219,15 +219,14 @@ const App: React.FC = () => {
 
   const handleSaveNote = async (data: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>) => {
     if (editingNote) {
+      // Optimistic update
+      setNotes(prev => prev.map(n => n.id === editingNote.id ? { ...n, ...data, updatedAt: Date.now() } : n));
       await storageService.updateNote(editingNote.id, data, user?.uid);
-      if (!user) {
-        setNotes(prev => prev.map(n => n.id === editingNote.id ? { ...n, ...data, updatedAt: Date.now() } : n));
-      }
     } else {
+      // Para novas notas, o createNote retorna a nota criada. 
+      // Adicionamos ao estado local imediatamente.
       const newNote = await storageService.createNote(data, user?.uid);
-      if (!user) {
-        setNotes(prev => [newNote, ...prev]);
-      }
+      setNotes(prev => [newNote, ...prev]);
       triggerLogoSpin();
     }
     setEditingNote(undefined);
@@ -235,18 +234,16 @@ const App: React.FC = () => {
   };
 
   const handleUpdateNoteField = (id: string, updates: Partial<Note>) => {
+    setNotes(prev => prev.map(n => n.id === id ? { ...n, ...updates, updatedAt: Date.now() } : n));
     storageService.updateNote(id, updates, user?.uid);
-    if (!user) {
-      setNotes(prev => prev.map(n => n.id === id ? { ...n, ...updates, updatedAt: Date.now() } : n));
-    }
   };
 
   const handleDeleteNote = (id: string) => {
     if (confirm(t.deleteConfirm)) {
+      // Atualização otimista: remove do estado local imediatamente
+      setNotes(prev => prev.filter(n => n.id !== id));
+      // Deleta no storage/cloud em background
       storageService.deleteNote(id, user?.uid);
-      if (!user) {
-        setNotes(prev => prev.filter(n => n.id !== id));
-      }
     }
   };
 
