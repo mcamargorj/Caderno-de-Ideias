@@ -102,6 +102,15 @@ const App: React.FC = () => {
 
   const t = translations[language];
 
+  // Helper para obter a data atual em formato YYYY-MM-DD local
+  const getTodayISO = useCallback(() => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, []);
+
   const triggerLogoSpin = () => {
     if (isLogoSpinning) return;
     setIsLogoSpinning(true);
@@ -167,7 +176,7 @@ const App: React.FC = () => {
       if (typeof window === 'undefined' || !('Notification' in window)) return;
       
       const now = new Date();
-      const nowDate = now.toISOString().split('T')[0];
+      const nowDate = getTodayISO();
       const nowTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
       notes.forEach(note => {
@@ -185,7 +194,7 @@ const App: React.FC = () => {
 
     const interval = setInterval(checkReminders, 30000);
     return () => clearInterval(interval);
-  }, [notes]);
+  }, [notes, getTodayISO]);
 
   const toggleLanguage = (newLang: Language) => {
     setLanguage(newLang);
@@ -219,12 +228,9 @@ const App: React.FC = () => {
 
   const handleSaveNote = async (data: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>) => {
     if (editingNote) {
-      // Optimistic update
       setNotes(prev => prev.map(n => n.id === editingNote.id ? { ...n, ...data, updatedAt: Date.now() } : n));
       await storageService.updateNote(editingNote.id, data, user?.uid);
     } else {
-      // Para novas notas, o createNote retorna a nota criada. 
-      // Adicionamos ao estado local imediatamente.
       const newNote = await storageService.createNote(data, user?.uid);
       setNotes(prev => [newNote, ...prev]);
       triggerLogoSpin();
@@ -240,9 +246,7 @@ const App: React.FC = () => {
 
   const handleDeleteNote = (id: string) => {
     if (confirm(t.deleteConfirm)) {
-      // Atualização otimista: remove do estado local imediatamente
       setNotes(prev => prev.filter(n => n.id !== id));
-      // Deleta no storage/cloud em background
       storageService.deleteNote(id, user?.uid);
     }
   };
@@ -264,18 +268,27 @@ const App: React.FC = () => {
 
   const timelineDates = useMemo(() => {
     const dates = [];
+    const todayISO = getTodayISO();
+    
     for (let i = -2; i < 12; i++) {
       const d = new Date();
       d.setDate(d.getDate() + i);
+      
+      // Gerar ISO Local (YYYY-MM-DD)
+      const ly = d.getFullYear();
+      const lm = String(d.getMonth() + 1).padStart(2, '0');
+      const ld = String(d.getDate()).padStart(2, '0');
+      const localISO = `${ly}-${lm}-${ld}`;
+
       dates.push({
-        full: d.toISOString().split('T')[0],
+        full: localISO,
         day: d.toLocaleDateString(language, { day: '2-digit' }),
         weekday: d.toLocaleDateString(language, { weekday: 'short' }).replace('.', ''),
-        isToday: d.toISOString().split('T')[0] === new Date().toISOString().split('T')[0]
+        isToday: localISO === todayISO
       });
     }
     return dates;
-  }, [language]);
+  }, [language, getTodayISO]);
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-transparent pb-24 md:pb-0">
@@ -333,7 +346,7 @@ const App: React.FC = () => {
           <button onClick={() => { setFilterColor(null); setSelectedDate(null); }} className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all font-black text-xs uppercase ${(!filterColor && !selectedDate) ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}>
             <i className="fas fa-layer-group"></i> {t.allInsights}
           </button>
-          <button onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])} className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all font-black text-xs uppercase ${selectedDate === new Date().toISOString().split('T')[0] ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}>
+          <button onClick={() => setSelectedDate(getTodayISO())} className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all font-black text-xs uppercase ${selectedDate === getTodayISO() ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}>
             <i className="fas fa-calendar-day"></i> {t.planningToday}
           </button>
         </nav>
@@ -594,7 +607,7 @@ const App: React.FC = () => {
           <i className="fas fa-home text-xl"></i>
           <span className="text-[10px] font-black tracking-widest uppercase">{t.home}</span>
         </button>
-        <button onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])} className={`flex flex-col items-center gap-1.5 ${selectedDate === new Date().toISOString().split('T')[0] ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}>
+        <button onClick={() => setSelectedDate(getTodayISO())} className={`flex flex-col items-center gap-1.5 ${selectedDate === getTodayISO() ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}>
           <i className="fas fa-calendar-check text-xl"></i>
           <span className="text-[10px] font-black tracking-widest uppercase">{t.today}</span>
         </button>
