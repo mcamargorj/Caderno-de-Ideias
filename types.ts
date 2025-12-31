@@ -35,7 +35,8 @@ export interface Note {
   time?: string; 
   createdAt: number;
   updatedAt: number;
-  userId?: string; // ID do usuário para sincronização na nuvem
+  userId?: string;
+  order?: number; // Campo para ordenação manual
 }
 
 export interface StorageState {
