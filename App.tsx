@@ -97,13 +97,12 @@ const App: React.FC = () => {
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [isLogoSpinning, setIsLogoSpinning] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null);
-  
   const notifiedNotesRef = useRef<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const t = translations[language];
 
+  // Helper para obter a data atual em formato YYYY-MM-DD local
   const getTodayISO = useCallback(() => {
     const today = new Date();
     const y = today.getFullYear();
@@ -122,22 +121,30 @@ const App: React.FC = () => {
     if (user) {
       setIsSyncing(true);
       return storageService.syncWithCloud(user.uid, (cloudNotes) => {
-        // Ordena por 'order' se existir, senão por data
-        const sorted = [...cloudNotes].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-        setNotes(sorted);
+        setNotes(cloudNotes);
         setIsLoading(false);
         setIsSyncing(false);
       });
     } else {
       const fetched = storageService.getStorage().notes;
-      const sorted = [...fetched].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-      setNotes(sorted);
+      setNotes(fetched);
       setIsLoading(false);
       return () => {};
     }
   }, [user]);
 
   useEffect(() => {
+    const hash = window.location.hash;
+    if (hash && hash.includes('error=')) {
+      const params = new URLSearchParams(hash.substring(1));
+      const errorDescription = params.get('error_description');
+      const errorCode = params.get('error');
+      if (errorDescription || errorCode) {
+        setLoginError(`${t.loginError}: ${errorDescription?.replace(/\+/g, ' ') || errorCode}`);
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+    }
+
     const storage = storageService.getStorage();
     if (storage.language) setLanguage(storage.language);
     
@@ -155,13 +162,39 @@ const App: React.FC = () => {
     });
 
     geminiService.getDailyInsight(storage.language || Language.PT).then(setDailyInsight);
+    
     return () => { if (unsubscribeAuth) unsubscribeAuth(); };
-  }, [language]);
+  }, [language, t.loginError]);
 
   useEffect(() => {
     const unsubscribe = loadNotes();
     return () => { if (typeof unsubscribe === 'function') unsubscribe(); };
   }, [loadNotes]);
+
+  useEffect(() => {
+    const checkReminders = () => {
+      if (typeof window === 'undefined' || !('Notification' in window)) return;
+      
+      const now = new Date();
+      const nowDate = getTodayISO();
+      const nowTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+      notes.forEach(note => {
+        if (note.date === nowDate && note.time === nowTime && !notifiedNotesRef.current.has(note.id)) {
+          if (Notification.permission === 'granted') {
+            new Notification(`Lembrete: ${note.title || 'Insight'}`, {
+              body: note.content.substring(0, 100),
+              icon: 'https://portalmschelp.pythonanywhere.com/static/images/site/img/logo.png'
+            });
+            notifiedNotesRef.current.add(note.id);
+          }
+        }
+      });
+    };
+
+    const interval = setInterval(checkReminders, 30000);
+    return () => clearInterval(interval);
+  }, [notes, getTodayISO]);
 
   const toggleLanguage = (newLang: Language) => {
     setLanguage(newLang);
@@ -170,11 +203,26 @@ const App: React.FC = () => {
     geminiService.getDailyInsight(newLang).then(setDailyInsight);
   };
 
+  const handleLogin = async () => {
+    setLoginError(null);
+    setIsLoggingIn(true);
+    const { error } = await storageService.signInWithGoogle();
+    if (error) {
+      console.error("Erro no login:", error);
+      setLoginError(`${t.loginError}: ${error.message || 'OAuth failure'}`);
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await storageService.signOut();
+    setUser(null);
+  };
+
   const filteredNotes = useMemo(() => {
     let result = storageService.searchNotes(notes, searchQuery);
     if (filterColor) result = result.filter(n => n.color === filterColor);
     if (selectedDate) result = result.filter(n => n.date === selectedDate);
-    // Mantém a ordem manual se não houver pesquisa ativa que altere a relevância
     return result;
   }, [notes, searchQuery, filterColor, selectedDate]);
 
@@ -184,7 +232,7 @@ const App: React.FC = () => {
       await storageService.updateNote(editingNote.id, data, user?.uid);
     } else {
       const newNote = await storageService.createNote(data, user?.uid);
-      setNotes(prev => [...prev, newNote]);
+      setNotes(prev => [newNote, ...prev]);
       triggerLogoSpin();
     }
     setEditingNote(undefined);
@@ -203,49 +251,35 @@ const App: React.FC = () => {
     }
   };
 
-  // Fix: Added handleLogout function to call storageService.signOut
-  const handleLogout = async () => {
-    await storageService.signOut();
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
   };
 
-  // Lógica de Reordenação Manual (Drag and Drop)
-  const handleDragStart = (id: string) => {
-    setDraggedNoteId(id);
-  };
-
-  const handleDragOver = (e: React.DragEvent, id: string) => {
-    e.preventDefault();
-    if (!draggedNoteId || draggedNoteId === id) return;
-
-    const draggedIndex = notes.findIndex(n => n.id === draggedNoteId);
-    const targetIndex = notes.findIndex(n => n.id === id);
-
-    if (draggedIndex === -1 || targetIndex === -1) return;
-
-    const newNotes = [...notes];
-    const [movedItem] = newNotes.splice(draggedIndex, 1);
-    newNotes.splice(targetIndex, 0, movedItem);
-    
-    setNotes(newNotes);
-  };
-
-  const handleDragEnd = () => {
-    if (draggedNoteId) {
-      storageService.updateNotesOrder(notes, user?.uid);
-      setDraggedNoteId(null);
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const success = await storageService.importBackup(file);
+      if (success) {
+        alert(t.importSuccess);
+        loadNotes();
+      }
     }
   };
 
   const timelineDates = useMemo(() => {
     const dates = [];
     const todayISO = getTodayISO();
+    
     for (let i = -2; i < 12; i++) {
       const d = new Date();
       d.setDate(d.getDate() + i);
+      
+      // Gerar ISO Local (YYYY-MM-DD)
       const ly = d.getFullYear();
       const lm = String(d.getMonth() + 1).padStart(2, '0');
       const ld = String(d.getDate()).padStart(2, '0');
       const localISO = `${ly}-${lm}-${ld}`;
+
       dates.push({
         full: localISO,
         day: d.toLocaleDateString(language, { day: '2-digit' }),
@@ -258,17 +292,22 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-transparent pb-24 md:pb-0">
-      <input type="file" ref={fileInputRef} onChange={(e) => {
-        const file = e.target.files?.[0];
-        if (file) storageService.importBackup(file).then(success => success && loadNotes());
-      }} accept=".json" className="hidden" />
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" />
 
       {/* SIDEBAR DESKTOP */}
       <aside className="hidden md:flex w-64 lg:w-72 bg-white/60 backdrop-blur-xl border-r p-6 flex-col gap-6 z-20">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 flex items-center justify-center cursor-pointer transition-transform active:scale-90" onClick={triggerLogoSpin}>
-              <img src="https://portalmschelp.pythonanywhere.com/static/images/site/img/logo.png" alt="Logo" className={`w-14 h-14 object-contain transition-all drop-shadow-sm ${isLogoSpinning ? 'animate-spin-once' : ''}`} />
+            <div 
+              className="w-14 h-14 flex items-center justify-center cursor-pointer transition-transform active:scale-90" 
+              onClick={triggerLogoSpin}
+              onMouseEnter={triggerLogoSpin}
+            >
+              <img 
+                src="https://portalmschelp.pythonanywhere.com/static/images/site/img/logo.png" 
+                alt="Logo" 
+                className={`w-14 h-14 object-contain transition-all drop-shadow-sm ${isLogoSpinning ? 'animate-spin-once' : ''}`} 
+              />
             </div>
             <div>
               <h1 className="text-sm font-black text-gray-900 leading-tight uppercase">{t.appTitle}</h1>
@@ -280,6 +319,7 @@ const App: React.FC = () => {
           </button>
         </div>
 
+        {/* Perfil do Usuário */}
         <div className="px-1">
           {user ? (
             <div className="flex items-center gap-3 p-3 bg-white/50 border border-indigo-100 rounded-2xl shadow-sm">
@@ -293,9 +333,12 @@ const App: React.FC = () => {
               </div>
             </div>
           ) : (
-            <Button variant="secondary" className="w-full h-12 rounded-2xl text-[10px] font-black shadow-sm" onClick={() => storageService.signInWithGoogle()} isLoading={isLoggingIn}>
-              <i className="fab fa-google mr-2 text-indigo-500"></i> {t.connectGoogle}
-            </Button>
+            <div className="space-y-2">
+              <Button variant="secondary" className="w-full h-12 rounded-2xl text-[10px] font-black shadow-sm" onClick={handleLogin} isLoading={isLoggingIn}>
+                <i className="fab fa-google mr-2 text-indigo-500"></i> {t.connectGoogle}
+              </Button>
+              {loginError && <p className="text-[9px] text-red-500 font-bold uppercase text-center px-2 animate-pulse">{loginError}</p>}
+            </div>
           )}
         </div>
 
@@ -311,7 +354,11 @@ const App: React.FC = () => {
         <div className="mt-4">
            <div className="flex justify-between items-center px-3 mb-4">
              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t.filterByColor}</p>
-             {filterColor && <button onClick={() => setFilterColor(null)} className="text-indigo-500 hover:text-indigo-700 transition-all"><i className="fas fa-filter-circle-xmark text-sm"></i></button>}
+             {filterColor && (
+               <button onClick={() => setFilterColor(null)} className="text-indigo-500 hover:text-indigo-700 transition-all">
+                 <i className="fas fa-filter-circle-xmark text-sm"></i>
+               </button>
+             )}
            </div>
            <div className="grid grid-cols-4 gap-3 px-3">
             {Object.values(NoteColor).map(color => (
@@ -335,12 +382,22 @@ const App: React.FC = () => {
       <div className="flex-1 flex flex-col min-w-0">
         <header className="px-6 py-4 md:py-6 md:px-10 flex flex-col md:flex-row items-center justify-between gap-6 sticky top-0 z-30 bg-white/40 backdrop-blur-md border-b">
           <div className="flex items-center justify-between w-full md:hidden mb-2">
-            <div className="flex items-center gap-3 cursor-pointer active:scale-95" onClick={triggerLogoSpin}>
-              <img src="https://portalmschelp.pythonanywhere.com/static/images/site/img/logo.png" className={`w-11 h-11 object-contain transition-all ${isLogoSpinning ? 'animate-spin-once' : ''}`} alt="Logo" />
+            <div 
+              className="flex items-center gap-3 cursor-pointer active:scale-95" 
+              onClick={triggerLogoSpin}
+              onMouseEnter={triggerLogoSpin}
+            >
+              <img 
+                src="https://portalmschelp.pythonanywhere.com/static/images/site/img/logo.png" 
+                className={`w-11 h-11 object-contain transition-all ${isLogoSpinning ? 'animate-spin-once' : ''}`} 
+                alt="Logo" 
+              />
               <span className="font-black text-gray-900 text-sm tracking-tight uppercase">{t.appSubtitle}</span>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={() => setIsSearchActive(!isSearchActive)} className="p-2 text-gray-500"><i className={`fas ${isSearchActive ? 'fa-times' : 'fa-search'}`}></i></button>
+              <button onClick={() => setIsSearchActive(!isSearchActive)} className="p-2 text-gray-500">
+                <i className={`fas ${isSearchActive ? 'fa-times' : 'fa-search'}`}></i>
+              </button>
               {user && <img src={user.photoURL || ''} className="w-8 h-8 rounded-full border border-indigo-200" onClick={() => setIsSettingsOpen(true)} />}
               {!user && <button onClick={() => setIsSettingsOpen(true)} className="p-2 text-gray-500"><i className="fas fa-gear"></i></button>}
             </div>
@@ -358,12 +415,14 @@ const App: React.FC = () => {
           </div>
         </header>
 
+        {/* STATUS DE SINCRONIZAÇÃO */}
         {isSyncing && (
           <div className="px-10 py-2 bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase flex items-center gap-2 animate-pulse">
             <i className="fas fa-sync fa-spin"></i> {t.migrating}
           </div>
         )}
 
+        {/* TIMELINE E FILTROS MOBILE */}
         <div className="px-6 md:px-10 pt-6 flex flex-col gap-6">
           <div className="md:hidden p-5 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-[2rem] text-white shadow-xl shadow-indigo-100">
              <div className="flex items-center gap-2 mb-2">
@@ -373,10 +432,13 @@ const App: React.FC = () => {
              <p className="text-xs font-bold leading-relaxed italic">"{dailyInsight || t.loading}"</p>
           </div>
 
+          {/* Timeline Section */}
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-black text-gray-900 tracking-tight">{t.timeline}</h2>
-              <button onClick={() => setSelectedDate(null)} className={`text-[10px] font-black uppercase transition-colors ${!selectedDate ? 'text-indigo-600' : 'text-gray-400'}`}>{t.viewAll}</button>
+              <button onClick={() => setSelectedDate(null)} className={`text-[10px] font-black uppercase transition-colors ${!selectedDate ? 'text-indigo-600' : 'text-gray-400'}`}>
+                {t.viewAll}
+              </button>
             </div>
             <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide no-scrollbar -mx-1 px-1">
               {timelineDates.map(date => (
@@ -384,6 +446,29 @@ const App: React.FC = () => {
                   <span className="text-[9px] font-black uppercase tracking-tighter opacity-70">{date.weekday}</span>
                   <span className="text-lg font-black">{date.day}</span>
                   {date.isToday && <span className={`w-1.5 h-1.5 rounded-full ${selectedDate === date.full ? 'bg-white' : 'bg-indigo-500'}`}></span>}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Color Filter Section Mobile */}
+          <div className="md:hidden">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t.filterByColor}</h2>
+              {filterColor && (
+                <button onClick={() => setFilterColor(null)} className="text-indigo-600 hover:text-indigo-800 transition-all p-1">
+                   <i className="fas fa-filter-circle-xmark text-lg"></i>
+                </button>
+              )}
+            </div>
+            <div className="flex gap-4 overflow-x-auto pb-6 scrollbar-hide no-scrollbar -mx-1 px-1">
+              {Object.values(NoteColor).map(color => (
+                <button 
+                  key={color} 
+                  onClick={() => setFilterColor(filterColor === color ? null : color)} 
+                  className={`flex-shrink-0 w-10 h-10 rounded-full shadow-sm transition-all active:scale-90 border-2 flex items-center justify-center ${color} ${filterColor === color ? 'border-indigo-600 scale-110 shadow-lg' : 'border-transparent'}`}
+                >
+                  {filterColor === color && <i className={`fas fa-check text-[10px] ${['bg-yellow-200', 'bg-blue-200', 'bg-green-200', 'bg-pink-200', 'bg-purple-200', 'bg-orange-200', 'theme-zen', 'theme-paper'].includes(color) ? 'text-indigo-600' : 'text-white'}`}></i>}
                 </button>
               ))}
             </div>
@@ -398,55 +483,55 @@ const App: React.FC = () => {
             </div>
           ) : filteredNotes.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-8 md:gap-10 animate-in fade-in duration-1000">
-              {filteredNotes.map((note) => (
-                <div 
-                  key={note.id} 
-                  onDragOver={(e) => handleDragOver(e, note.id)} 
-                  onDragEnd={handleDragEnd}
-                  className={`transition-all duration-300 ${draggedNoteId === note.id ? 'opacity-30 scale-95 rotate-2' : 'opacity-100 scale-100'}`}
-                >
-                  <NoteCard 
-                    note={note} 
-                    language={language} 
-                    onEdit={(n) => { setEditingNote(n); setIsFormOpen(true); }} 
-                    onDelete={handleDeleteNote} 
-                    onUpdate={handleUpdateNoteField}
-                    onDragStart={() => handleDragStart(note.id)}
-                  />
-                </div>
+              {filteredNotes.map(note => (
+                <NoteCard key={note.id} note={note} language={language} onEdit={(n) => { setEditingNote(n); setIsFormOpen(true); }} onDelete={handleDeleteNote} onUpdate={handleUpdateNoteField} />
               ))}
             </div>
           ) : (
             <div className="h-[40vh] flex items-center justify-center">
               <div className="text-center max-w-sm animate-in fade-in zoom-in duration-500">
-                <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mx-auto mb-6"><i className="fas fa-calendar-xmark text-3xl"></i></div>
+                <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mx-auto mb-6">
+                  <i className="fas fa-calendar-xmark text-3xl"></i>
+                </div>
                 <h3 className="text-xl font-black text-gray-800 mb-2">{t.noNotes}</h3>
                 <p className="text-gray-400 text-sm font-semibold">{t.noNotesDesc}</p>
-                <Button variant="ghost" className="mt-6 text-sm font-black text-indigo-600 uppercase tracking-widest" onClick={() => setIsFormOpen(true)}>{t.startWriting}</Button>
+                <Button variant="ghost" className="mt-6 text-sm font-black text-indigo-600 uppercase tracking-widest" onClick={() => setIsFormOpen(true)}>
+                  {t.startWriting}
+                </Button>
               </div>
             </div>
           )}
         </main>
       </div>
 
+      {/* MODAL CONFIGURAÇÕES */}
       {isSettingsOpen && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-xl z-[70] flex items-center justify-center p-4 animate-in fade-in duration-300">
           <div className="bg-white/95 glass-panel w-full max-w-lg rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-400">
             <div className="p-10">
               <div className="flex justify-between items-center mb-10">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600"><i className="fas fa-gear text-2xl"></i></div>
+                  <div className="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600">
+                    <i className="fas fa-gear text-2xl"></i>
+                  </div>
                   <h2 className="text-3xl font-black text-gray-900 tracking-tight">{t.settings}</h2>
                 </div>
-                <button onClick={() => setIsSettingsOpen(false)} className="w-12 h-12 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 transition-all"><i className="fas fa-times text-2xl"></i></button>
+                <button onClick={() => setIsSettingsOpen(false)} className="w-12 h-12 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 transition-all">
+                  <i className="fas fa-times text-2xl"></i>
+                </button>
               </div>
+
               <div className="space-y-10">
+                {/* Seção Cloud */}
                 <div>
                   <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-5">Sincronização Cloud</label>
                   {!user ? (
-                    <Button variant="secondary" className="w-full h-16 rounded-3xl text-sm font-black" onClick={() => storageService.signInWithGoogle()} isLoading={isLoggingIn}>
-                      <i className="fab fa-google mr-3 text-indigo-500 text-xl"></i> {t.connectGoogle}
-                    </Button>
+                    <div className="space-y-3">
+                      <Button variant="secondary" className="w-full h-16 rounded-3xl text-sm font-black border-2 border-indigo-100 hover:border-indigo-300 shadow-sm" onClick={handleLogin} isLoading={isLoggingIn}>
+                        <i className="fab fa-google mr-3 text-indigo-500 text-xl"></i> {t.connectGoogle}
+                      </Button>
+                      {loginError && <p className="text-[10px] text-red-500 font-bold uppercase text-center mt-3 p-3 bg-red-50 rounded-xl border border-red-100">{loginError}</p>}
+                    </div>
                   ) : (
                     <div className="p-5 bg-indigo-50/50 border-2 border-indigo-100 rounded-3xl flex items-center justify-between">
                       <div className="flex items-center gap-4">
@@ -456,32 +541,80 @@ const App: React.FC = () => {
                           <p className="text-[10px] font-bold text-indigo-500 uppercase mt-1 tracking-widest">{t.syncStatus}</p>
                         </div>
                       </div>
-                      <button onClick={handleLogout} className="text-red-500 hover:text-red-700 p-3"><i className="fas fa-power-off"></i></button>
+                      <button onClick={handleLogout} className="text-red-500 hover:text-red-700 p-3 transition-colors">
+                        <i className="fas fa-power-off"></i>
+                      </button>
                     </div>
                   )}
                 </div>
+
                 <div>
                   <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-5">{t.language}</label>
                   <div className="grid grid-cols-2 gap-4">
-                    <button onClick={() => toggleLanguage(Language.PT)} className={`py-5 rounded-3xl border-2 font-black text-sm uppercase ${language === Language.PT ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-gray-100 text-gray-500'}`}>Português</button>
-                    <button onClick={() => toggleLanguage(Language.EN)} className={`py-5 rounded-3xl border-2 font-black text-sm uppercase ${language === Language.EN ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-gray-100 text-gray-500'}`}>English</button>
+                    <button onClick={() => toggleLanguage(Language.PT)} className={`flex items-center justify-center gap-4 py-5 rounded-3xl border-2 transition-all font-black text-sm uppercase ${language === Language.PT ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-gray-100 text-gray-500 hover:border-indigo-200'}`}>
+                      <img src="https://flagcdn.com/w40/br.png" className="w-7 h-5 object-cover rounded shadow-sm" alt="PT" /> Português
+                    </button>
+                    <button onClick={() => toggleLanguage(Language.EN)} className={`flex items-center justify-center gap-4 py-5 rounded-3xl border-2 transition-all font-black text-sm uppercase ${language === Language.EN ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-gray-100 text-gray-500 hover:border-indigo-200'}`}>
+                      <img src="https://flagcdn.com/w40/us.png" className="w-7 h-5 object-cover rounded shadow-sm" alt="EN" /> English
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-5">{t.security}</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <button onClick={() => storageService.exportBackup()} className="flex items-center justify-between px-6 py-5 bg-gray-50 hover:bg-indigo-50 rounded-3xl transition-all group border-2 border-transparent hover:border-indigo-100">
+                      <div className="flex items-center gap-4">
+                        <i className="fas fa-file-export text-indigo-600 text-lg"></i>
+                        <span className="font-black text-gray-700 text-[10px] uppercase tracking-wider">{t.export}</span>
+                      </div>
+                      <i className="fas fa-chevron-right text-gray-300 group-hover:text-indigo-400 transition-colors"></i>
+                    </button>
+                    <button onClick={handleImportClick} className="flex items-center justify-between px-6 py-5 bg-gray-50 hover:bg-emerald-50 rounded-3xl transition-all group border-2 border-transparent hover:border-emerald-100">
+                      <div className="flex items-center gap-4">
+                        <i className="fas fa-file-import text-emerald-600 text-lg"></i>
+                        <span className="font-black text-gray-700 text-[10px] uppercase tracking-wider">{t.import}</span>
+                      </div>
+                      <i className="fas fa-chevron-right text-gray-300 group-hover:text-emerald-400 transition-colors"></i>
+                    </button>
                   </div>
                 </div>
               </div>
+
               <div className="mt-12 pt-8 border-t border-gray-100 flex justify-center">
-                <Button variant="ghost" className="text-indigo-600 font-black tracking-[0.2em] text-xs uppercase" onClick={() => setIsSettingsOpen(false)}>{t.close}</Button>
+                <Button variant="ghost" className="text-indigo-600 font-black tracking-[0.2em] text-xs uppercase hover:bg-indigo-50" onClick={() => setIsSettingsOpen(false)}>
+                  {t.close}
+                </Button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {isFormOpen && <NoteForm note={editingNote} language={language} onSave={handleSaveNote} onCancel={() => { setIsFormOpen(false); setEditingNote(undefined); }} />}
-      <button onClick={() => { setEditingNote(undefined); setIsFormOpen(true); }} className="md:hidden fixed bottom-28 right-8 w-16 h-16 bg-indigo-600 text-white rounded-full shadow-2xl z-40 flex items-center justify-center active:scale-90 transition-transform"><i className="fas fa-plus text-2xl"></i></button>
+      {/* FORMULÁRIO DE NOTA */}
+      {isFormOpen && (
+        <NoteForm note={editingNote} language={language} onSave={handleSaveNote} onCancel={() => { setIsFormOpen(false); setEditingNote(undefined); }} />
+      )}
+
+      {/* BOTÃO FLUTUANTE MOBILE */}
+      <button onClick={() => { setEditingNote(undefined); setIsFormOpen(true); }} className="md:hidden fixed bottom-28 right-8 w-16 h-16 bg-indigo-600 text-white rounded-full shadow-2xl z-40 flex items-center justify-center active:scale-90 transition-transform">
+        <i className="fas fa-plus text-2xl"></i>
+      </button>
+
+      {/* TAB BAR MOBILE */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t px-8 py-4 flex items-center justify-around z-50 shadow-2xl">
-        <button onClick={() => { setSelectedDate(null); window.scrollTo({top: 0, behavior: 'smooth'}); }} className={`flex flex-col items-center gap-1.5 ${!selectedDate ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}><i className="fas fa-home text-xl"></i><span className="text-[10px] font-black uppercase">{t.home}</span></button>
-        <button onClick={() => setSelectedDate(getTodayISO())} className={`flex flex-col items-center gap-1.5 ${selectedDate === getTodayISO() ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}><i className="fas fa-calendar-check text-xl"></i><span className="text-[10px] font-black uppercase">{t.today}</span></button>
-        <button onClick={() => setIsSettingsOpen(true)} className={`flex flex-col items-center gap-1.5 ${isSettingsOpen ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}><i className="fas fa-gear text-xl"></i><span className="text-[10px] font-black uppercase">{t.settings}</span></button>
+        <button onClick={() => { setSelectedDate(null); setFilterColor(null); window.scrollTo({top: 0, behavior: 'smooth'}); }} className={`flex flex-col items-center gap-1.5 ${(!selectedDate && !filterColor) ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}>
+          <i className="fas fa-home text-xl"></i>
+          <span className="text-[10px] font-black tracking-widest uppercase">{t.home}</span>
+        </button>
+        <button onClick={() => setSelectedDate(getTodayISO())} className={`flex flex-col items-center gap-1.5 ${selectedDate === getTodayISO() ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}>
+          <i className="fas fa-calendar-check text-xl"></i>
+          <span className="text-[10px] font-black tracking-widest uppercase">{t.today}</span>
+        </button>
+        <button onClick={() => setIsSettingsOpen(true)} className={`flex flex-col items-center gap-1.5 ${isSettingsOpen ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}>
+          <i className="fas fa-gear text-xl"></i>
+          <span className="text-[10px] font-black tracking-widest uppercase">{t.settings}</span>
+        </button>
       </nav>
     </div>
   );

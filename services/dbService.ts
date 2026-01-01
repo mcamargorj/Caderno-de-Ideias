@@ -4,6 +4,7 @@ import { Note, StorageState, User } from '../types';
 
 const STORAGE_KEY = 'notas_rapidas_storage';
 
+// Variáveis de ambiente injetadas via Vite/Vercel
 const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
 
@@ -32,16 +33,26 @@ export const storageService = {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   },
 
+  // Auth
   signInWithGoogle: async (): Promise<{error: any}> => {
     if (!supabase) {
-      return { error: new Error("Configuração do Supabase não encontrada.") };
+      return { error: new Error("Configuração do Supabase (URL/Key) não encontrada no ambiente.") };
     }
+    
+    console.log("Iniciando OAuth com Google... RedirectURI:", window.location.origin);
+    
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: window.location.origin,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
       }
     });
+
+    if (error) console.error("Erro retornado pelo Supabase no signIn:", error);
     return { error };
   },
 
@@ -54,6 +65,7 @@ export const storageService = {
       callback(null);
       return () => {};
     }
+    
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         callback({
@@ -66,6 +78,7 @@ export const storageService = {
         callback(null);
       }
     });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         callback({
@@ -78,40 +91,52 @@ export const storageService = {
         callback(null);
       }
     });
+
     return () => subscription.unsubscribe();
   },
 
+  // Database Sync
   syncWithCloud: (userId: string, callback: (notes: Note[]) => void) => {
     if (!supabase) return () => {};
+
     supabase
       .from('notes')
       .select('*')
       .eq('userId', userId)
-      .order('order', { ascending: true }) // Ordena pela posição definida
+      .order('updatedAt', { ascending: false })
       .then(({ data, error }) => {
         if (!error && data) callback(data as Note[]);
       });
+
     const channel = supabase
       .channel(`user-notes-${userId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notes', filter: `userId=eq.${userId}` }, () => {
-        supabase!.from('notes').select('*').eq('userId', userId).order('order', { ascending: true }).then(({ data }) => {
-          if (data) callback(data as Note[]);
-        });
-      })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notes', filter: `userId=eq.${userId}` },
+        () => {
+          supabase!
+            .from('notes')
+            .select('*')
+            .eq('userId', userId)
+            .order('updatedAt', { ascending: false })
+            .then(({ data }) => {
+              if (data) callback(data as Note[]);
+            });
+        }
+      )
       .subscribe();
-    return () => { supabase!.removeChannel(channel); };
+
+    return () => {
+      supabase!.removeChannel(channel);
+    };
   },
 
   createNote: async (note: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>, userId?: string): Promise<Note> => {
-    const storage = storageService.getStorage();
-    const maxOrder = storage.notes.length > 0 ? Math.max(...storage.notes.map(n => n.order || 0)) : 0;
-    
     const id = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).substring(2));
     const newNote: Note = {
       ...note,
       id,
       userId,
-      order: maxOrder + 1,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -120,6 +145,7 @@ export const storageService = {
       const { error } = await supabase.from('notes').insert([newNote]);
       if (error) console.error("Erro ao salvar no Supabase:", error);
     } else {
+      const storage = storageService.getStorage();
       storage.notes.push(newNote);
       storageService.saveStorage(storage);
     }
@@ -129,7 +155,11 @@ export const storageService = {
   updateNote: async (id: string, updates: Partial<Note>, userId?: string): Promise<void> => {
     const updatedAt = Date.now();
     if (userId && supabase) {
-      await supabase.from('notes').update({ ...updates, updatedAt }).eq('id', id);
+      const { error } = await supabase
+        .from('notes')
+        .update({ ...updates, updatedAt })
+        .eq('id', id);
+      if (error) console.error("Erro ao atualizar no Supabase:", error);
     } else {
       const storage = storageService.getStorage();
       const index = storage.notes.findIndex(n => n.id === id);
@@ -140,23 +170,10 @@ export const storageService = {
     }
   },
 
-  updateNotesOrder: async (orderedNotes: Note[], userId?: string): Promise<void> => {
-    const updatedNotes = orderedNotes.map((n, index) => ({ ...n, order: index, updatedAt: Date.now() }));
-    
-    if (userId && supabase) {
-      // Upsert no Supabase para atualizar ordens em massa
-      const { error } = await supabase.from('notes').upsert(updatedNotes);
-      if (error) console.error("Erro ao atualizar ordem no Supabase:", error);
-    } else {
-      const storage = storageService.getStorage();
-      storage.notes = updatedNotes;
-      storageService.saveStorage(storage);
-    }
-  },
-
   deleteNote: async (id: string, userId?: string): Promise<void> => {
     if (userId && supabase) {
-      await supabase.from('notes').delete().eq('id', id);
+      const { error } = await supabase.from('notes').delete().eq('id', id);
+      if (error) console.error("Erro ao deletar no Supabase:", error);
     } else {
       const storage = storageService.getStorage();
       const filteredNotes = storage.notes.filter(n => n.id !== id);
@@ -168,15 +185,26 @@ export const storageService = {
     if (!supabase) return;
     const storage = storageService.getStorage();
     if (storage.notes.length === 0) return;
-    const notesToMigrate = storage.notes.map((n, i) => ({ ...n, userId, order: n.order ?? i }));
+
+    console.log(`Sincronizando ${storage.notes.length} notas locais para a nuvem...`);
+    const notesToMigrate = storage.notes.map(n => ({ ...n, userId }));
     const { error } = await supabase.from('notes').insert(notesToMigrate);
-    if (!error) storageService.saveStorage({ ...storage, notes: [] });
+
+    if (!error) {
+      storageService.saveStorage({ ...storage, notes: [] });
+      console.log("Migração concluída com sucesso.");
+    } else {
+      console.error("Erro na migração Supabase:", error);
+    }
   },
 
   searchNotes: (allNotes: Note[], query: string): Note[] => {
     if (!query) return allNotes;
     const lowerQuery = query.toLowerCase();
-    return allNotes.filter(n => n.title.toLowerCase().includes(lowerQuery) || n.content.toLowerCase().includes(lowerQuery));
+    return allNotes.filter(n => 
+      n.title.toLowerCase().includes(lowerQuery) || 
+      n.content.toLowerCase().includes(lowerQuery)
+    );
   },
 
   exportBackup: () => {
@@ -200,6 +228,7 @@ export const storageService = {
       }
       return false;
     } catch (e) {
+      console.error("Erro ao importar backup:", e);
       return false;
     }
   }

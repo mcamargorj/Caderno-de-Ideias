@@ -11,10 +11,9 @@ interface NoteCardProps {
   onEdit: (note: Note) => void;
   onDelete: (id: string) => void;
   onUpdate: (id: string, updates: Partial<Note>) => void;
-  onDragStart: () => void; // Prop para notificar o início do arraste
 }
 
-export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDelete, onUpdate, onDragStart }) => {
+export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDelete, onUpdate }) => {
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
@@ -58,6 +57,21 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
     }
   };
 
+  const handleAddToCalendar = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!note.date) return;
+
+    const title = encodeURIComponent(note.title || 'Insight');
+    const details = encodeURIComponent(note.content);
+    const datePart = note.date.replace(/-/g, '');
+    const timePart = (note.time || '09:00').replace(/:/g, '') + '00';
+    const startDateTime = `${datePart}T${timePart}`;
+    const endHour = parseInt((note.time || '09:00').split(':')[0]) + 1;
+    const endDateTime = `${datePart}T${String(endHour).padStart(2, '0')}${timePart.substring(2)}`;
+    const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startDateTime}/${endDateTime}&details=${details}`;
+    window.open(url, '_blank');
+  };
+
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
     const formattedDate = note.date ? new Date(note.date + 'T00:00:00').toLocaleDateString(language) : '';
@@ -84,8 +98,13 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
           onclone: (clonedDoc) => {
             const clonedCard = clonedDoc.querySelector(`[data-share-id="${tempId}"]`) as HTMLElement;
             if (clonedCard) {
-              const elementsToHide = clonedCard.querySelectorAll('.action-icons-container, .ai-button-container, .share-exclude, .drag-handle');
-              elementsToHide.forEach(el => { (el as HTMLElement).style.display = 'none'; });
+              // Oculta elementos que não devem aparecer na imagem compartilhada
+              const elementsToHide = clonedCard.querySelectorAll('.action-icons-container, .ai-button-container, .share-exclude');
+              elementsToHide.forEach(el => {
+                (el as HTMLElement).style.display = 'none';
+              });
+              
+              // Ajusta a borda inferior se necessário para ficar limpo
               const footer = clonedCard.querySelector('.footer-metadata') as HTMLElement;
               if (footer) footer.style.border = 'none';
             }
@@ -111,21 +130,9 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
   return (
     <div 
       ref={cardRef}
-      draggable="true"
-      onDragStart={onDragStart}
-      className={`sticky-note w-full min-h-[360px] h-auto ${note.color} p-7 shadow-lg relative flex flex-col cursor-pointer border border-black/5 rounded-sm overflow-hidden transition-all hover:shadow-2xl active:cursor-grabbing`}
+      className={`sticky-note w-full min-h-[360px] h-auto ${note.color} p-7 shadow-lg relative flex flex-col cursor-pointer border border-black/5 rounded-sm overflow-hidden transition-all hover:shadow-2xl`}
       onClick={() => onEdit(note)}
     >
-      {/* Alça de Arraste - Visível em desktop e mobile */}
-      <div className="drag-handle absolute top-0 left-0 right-0 h-8 flex items-center justify-center cursor-grab active:cursor-grabbing opacity-0 hover:opacity-100 transition-opacity bg-black/5 z-20 md:flex hidden">
-        <div className="w-12 h-1 bg-black/20 rounded-full"></div>
-      </div>
-      
-      {/* Mobile-friendly drag handle (visual hint) */}
-      <div className="md:hidden absolute top-2 right-2 drag-handle text-gray-400/30">
-        <i className="fas fa-grip-lines"></i>
-      </div>
-
       {!isDarkTheme && note.color !== NoteColor.PAPER && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-16 h-8 bg-white/30 rotate-1 pointer-events-none backdrop-blur-sm z-10"></div>
       )}
@@ -136,12 +143,21 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
             <div className={`flex items-center flex-wrap gap-1.5 px-2.5 py-1.5 ${isDarkTheme ? 'bg-white/10 text-white' : 'bg-black/5 text-slate-700'} rounded-lg text-[10px] font-black uppercase tracking-tighter`}>
               <i className="far fa-calendar-check text-xs"></i>
               <span>{formattedTargetDate}</span>
-              {note.time && <span className="ml-1 border-l border-current pl-1.5 flex items-center gap-1"><i className="far fa-clock text-[10px]"></i> {note.time}</span>}
+              {note.time && (
+                <span className="ml-1 border-l border-current pl-1.5 flex items-center gap-1">
+                  <i className="far fa-clock text-[10px]"></i> {note.time}
+                </span>
+              )}
             </div>
           )}
         </div>
 
         <div className="action-icons-container flex flex-wrap justify-end gap-1 ml-auto">
+          {note.date && (
+            <button onClick={handleAddToCalendar} title="Lembrete / Calendário" className={`w-8 h-8 flex items-center justify-center rounded-full transition-all hover:bg-black/10 ${iconColor}`}>
+              <i className="fas fa-bell text-sm"></i>
+            </button>
+          )}
           <button onClick={handleSpeak} title="Ouvir" className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${isSpeaking ? 'bg-indigo-500 text-white' : `hover:bg-black/10 ${iconColor}`}`}>
             <i className={`fas ${isSpeaking ? 'fa-volume-up animate-pulse' : 'fa-volume-low'} text-sm`}></i>
           </button>
