@@ -98,7 +98,6 @@ const App: React.FC = () => {
   const [isLogoSpinning, setIsLogoSpinning] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null);
-  const [draggedOverId, setDraggedOverId] = useState<string | null>(null);
   
   const notifiedNotesRef = useRef<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -123,6 +122,7 @@ const App: React.FC = () => {
     if (user) {
       setIsSyncing(true);
       return storageService.syncWithCloud(user.uid, (cloudNotes) => {
+        // Ordena por 'order' se existir, senão por data
         const sorted = [...cloudNotes].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
         setNotes(sorted);
         setIsLoading(false);
@@ -174,6 +174,7 @@ const App: React.FC = () => {
     let result = storageService.searchNotes(notes, searchQuery);
     if (filterColor) result = result.filter(n => n.color === filterColor);
     if (selectedDate) result = result.filter(n => n.date === selectedDate);
+    // Mantém a ordem manual se não houver pesquisa ativa que altere a relevância
     return result;
   }, [notes, searchQuery, filterColor, selectedDate]);
 
@@ -202,38 +203,36 @@ const App: React.FC = () => {
     }
   };
 
+  // Fix: Added handleLogout function to call storageService.signOut
   const handleLogout = async () => {
     await storageService.signOut();
-    setUser(null);
   };
 
-  // Lógica de Reordenação Melhorada
+  // Lógica de Reordenação Manual (Drag and Drop)
   const handleDragStart = (id: string) => {
     setDraggedNoteId(id);
   };
 
-  const handleDragEnter = (id: string) => {
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
     if (!draggedNoteId || draggedNoteId === id) return;
-    setDraggedOverId(id);
+
+    const draggedIndex = notes.findIndex(n => n.id === draggedNoteId);
+    const targetIndex = notes.findIndex(n => n.id === id);
+
+    if (draggedIndex === -1 || targetIndex === -1) return;
+
+    const newNotes = [...notes];
+    const [movedItem] = newNotes.splice(draggedIndex, 1);
+    newNotes.splice(targetIndex, 0, movedItem);
     
-    setNotes(prev => {
-      const newNotes = [...prev];
-      const draggedIndex = newNotes.findIndex(n => n.id === draggedNoteId);
-      const targetIndex = newNotes.findIndex(n => n.id === id);
-      
-      if (draggedIndex !== -1 && targetIndex !== -1) {
-        const [removed] = newNotes.splice(draggedIndex, 1);
-        newNotes.splice(targetIndex, 0, removed);
-      }
-      return newNotes;
-    });
+    setNotes(newNotes);
   };
 
   const handleDragEnd = () => {
     if (draggedNoteId) {
       storageService.updateNotesOrder(notes, user?.uid);
       setDraggedNoteId(null);
-      setDraggedOverId(null);
     }
   };
 
@@ -401,9 +400,10 @@ const App: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-8 md:gap-10 animate-in fade-in duration-1000">
               {filteredNotes.map((note) => (
                 <div 
-                  key={note.id}
-                  onPointerEnter={() => handleDragEnter(note.id)}
-                  className={`transition-all duration-300 ${draggedNoteId === note.id ? 'z-50 opacity-50 scale-105' : ''}`}
+                  key={note.id} 
+                  onDragOver={(e) => handleDragOver(e, note.id)} 
+                  onDragEnd={handleDragEnd}
+                  className={`transition-all duration-300 ${draggedNoteId === note.id ? 'opacity-30 scale-95 rotate-2' : 'opacity-100 scale-100'}`}
                 >
                   <NoteCard 
                     note={note} 
@@ -412,7 +412,6 @@ const App: React.FC = () => {
                     onDelete={handleDeleteNote} 
                     onUpdate={handleUpdateNoteField}
                     onDragStart={() => handleDragStart(note.id)}
-                    onDragEnd={handleDragEnd}
                   />
                 </div>
               ))}

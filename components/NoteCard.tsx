@@ -11,11 +11,10 @@ interface NoteCardProps {
   onEdit: (note: Note) => void;
   onDelete: (id: string) => void;
   onUpdate: (id: string, updates: Partial<Note>) => void;
-  onDragStart: () => void;
-  onDragEnd: () => void;
+  onDragStart: () => void; // Prop para notificar o início do arraste
 }
 
-export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDelete, onUpdate, onDragStart, onDragEnd }) => {
+export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDelete, onUpdate, onDragStart }) => {
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
@@ -112,30 +111,26 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
   return (
     <div 
       ref={cardRef}
-      className={`sticky-note w-full min-h-[360px] h-auto ${note.color} p-7 shadow-lg relative flex flex-col cursor-pointer border border-black/5 rounded-sm overflow-hidden transition-all hover:shadow-2xl`}
+      draggable="true"
+      onDragStart={onDragStart}
+      className={`sticky-note w-full min-h-[360px] h-auto ${note.color} p-7 shadow-lg relative flex flex-col cursor-pointer border border-black/5 rounded-sm overflow-hidden transition-all hover:shadow-2xl active:cursor-grabbing`}
       onClick={() => onEdit(note)}
     >
-      {/* Alça de Arraste Unificada (Touch + Mouse) */}
-      <div 
-        className="drag-handle absolute top-0 left-0 right-0 h-12 flex items-center justify-center cursor-grab active:cursor-grabbing z-20"
-        onPointerDown={(e) => {
-          e.currentTarget.releasePointerCapture(e.pointerId);
-          onDragStart();
-        }}
-        onPointerUp={onDragEnd}
-        style={{ touchAction: 'none' }}
-      >
-        <div className="w-12 h-1 bg-black/10 rounded-full md:block hidden"></div>
-        <div className="md:hidden text-gray-400/30">
-          <i className="fas fa-grip-lines"></i>
-        </div>
+      {/* Alça de Arraste - Visível em desktop e mobile */}
+      <div className="drag-handle absolute top-0 left-0 right-0 h-8 flex items-center justify-center cursor-grab active:cursor-grabbing opacity-0 hover:opacity-100 transition-opacity bg-black/5 z-20 md:flex hidden">
+        <div className="w-12 h-1 bg-black/20 rounded-full"></div>
+      </div>
+      
+      {/* Mobile-friendly drag handle (visual hint) */}
+      <div className="md:hidden absolute top-2 right-2 drag-handle text-gray-400/30">
+        <i className="fas fa-grip-lines"></i>
       </div>
 
       {!isDarkTheme && note.color !== NoteColor.PAPER && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-16 h-8 bg-white/30 rotate-1 pointer-events-none backdrop-blur-sm z-10"></div>
       )}
       
-      <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6 mt-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6">
         <div className="flex flex-col gap-1 max-w-full">
           {note.date && (
             <div className={`flex items-center flex-wrap gap-1.5 px-2.5 py-1.5 ${isDarkTheme ? 'bg-white/10 text-white' : 'bg-black/5 text-slate-700'} rounded-lg text-[10px] font-black uppercase tracking-tighter`}>

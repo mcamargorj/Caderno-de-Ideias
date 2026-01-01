@@ -87,7 +87,7 @@ export const storageService = {
       .from('notes')
       .select('*')
       .eq('userId', userId)
-      .order('order', { ascending: true })
+      .order('order', { ascending: true }) // Ordena pela posição definida
       .then(({ data, error }) => {
         if (!error && data) callback(data as Note[]);
       });
@@ -141,19 +141,11 @@ export const storageService = {
   },
 
   updateNotesOrder: async (orderedNotes: Note[], userId?: string): Promise<void> => {
-    const now = Date.now();
-    const updatedNotes = orderedNotes.map((n, index) => ({ 
-      ...n, 
-      order: index, 
-      updatedAt: now 
-    }));
+    const updatedNotes = orderedNotes.map((n, index) => ({ ...n, order: index, updatedAt: Date.now() }));
     
     if (userId && supabase) {
-      // Limpamos o payload para evitar erros de colunas inexistentes ou protegidas
-      const payload = updatedNotes.map(({ id, order, updatedAt, userId: uId }) => ({
-        id, order, updatedAt, userId: uId
-      }));
-      const { error } = await supabase.from('notes').upsert(payload, { onConflict: 'id' });
+      // Upsert no Supabase para atualizar ordens em massa
+      const { error } = await supabase.from('notes').upsert(updatedNotes);
       if (error) console.error("Erro ao atualizar ordem no Supabase:", error);
     } else {
       const storage = storageService.getStorage();
