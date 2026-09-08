@@ -91,12 +91,29 @@ const App: React.FC = () => {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [dailyInsight, setDailyInsight] = useState("");
   const [filterColor, setFilterColor] = useState<NoteColor | null>(null);
+  const [filterTag, setFilterTag] = useState<string | null>(null);
+  const [currentView, setCurrentView] = useState<'active' | 'trash'>('active');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  // Rest of state variables ...
   const [language, setLanguage] = useState<Language>(Language.PT);
   const [user, setUser] = useState<User | null>(null);
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [isLogoSpinning, setIsLogoSpinning] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [isGlobalDark, setIsGlobalDark] = useState(false);
+  
+  // Extract all unique tags
+  const allTags = useMemo(() => {
+    const tags = new Set<string>();
+    notes.forEach(note => {
+      if (!note.deletedAt) {
+        const matches = note.content.match(/#[\wÀ-ÿ]+/g);
+        if (matches) matches.forEach(t => tags.add(t));
+      }
+    });
+    return Array.from(tags).sort();
+  }, [notes]);
   const notifiedNotesRef = useRef<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -169,6 +186,10 @@ const App: React.FC = () => {
     const storage = storageService.getStorage();
     if (storage.language) setLanguage(storage.language);
     
+    const savedDark = localStorage.getItem('globalDarkMode') === 'true';
+    setIsGlobalDark(savedDark);
+    if (savedDark) document.documentElement.classList.add('dark');
+
     const unsubscribeAuth = storageService.onAuthStateChanged((loggedUser) => {
       setUser(loggedUser);
       setIsLoggingIn(false);
@@ -224,6 +245,17 @@ const App: React.FC = () => {
     geminiService.getDailyInsight(newLang).then(setDailyInsight);
   };
 
+  const toggleDarkMode = () => {
+    const newVal = !isGlobalDark;
+    setIsGlobalDark(newVal);
+    localStorage.setItem('globalDarkMode', String(newVal));
+    if (newVal) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
+
   const handleLogin = async () => {
     setLoginError(null);
     setIsLoggingIn(true);
@@ -249,8 +281,14 @@ const App: React.FC = () => {
 
   const filteredNotes = useMemo(() => {
     return notesWithPinned.filter(note => {
-      // Pinned notes are ALWAYS visible regardless of filters
-      if (note.pinned) return true;
+      if (currentView === 'trash') {
+        if (!note.deletedAt) return false;
+      } else {
+        if (note.deletedAt) return false;
+      }
+
+      // Pinned notes are ALWAYS visible regardless of filters (except in trash)
+      if (note.pinned && currentView === 'active' && !searchQuery && !filterColor && !selectedDate && !filterTag) return true;
 
       const matchesSearch = !searchQuery || 
         note.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -258,10 +296,11 @@ const App: React.FC = () => {
       
       const matchesColor = !filterColor || note.color === filterColor;
       const matchesDate = !selectedDate || note.date === selectedDate;
+      const matchesTag = !filterTag || (note.content.match(/#[\wÀ-ÿ]+/g) || ([] as string[])).includes(filterTag);
 
-      return matchesSearch && matchesColor && matchesDate;
+      return matchesSearch && matchesColor && matchesDate && matchesTag;
     });
-  }, [notesWithPinned, searchQuery, filterColor, selectedDate]);
+  }, [notesWithPinned, searchQuery, filterColor, selectedDate, currentView, filterTag]);
 
   const handleSaveNote = async (data: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>) => {
     if (editingNote) {
@@ -285,6 +324,18 @@ const App: React.FC = () => {
         newPinnedSet.delete(id);
       }
       savePinnedLocal(newPinnedSet);
+    }
+
+    if ('deletedAt' in updates && updates.deletedAt === undefined) {
+      setNotes(prev => prev.map(n => {
+        if (n.id === id) {
+          const { deletedAt, ...rest } = n;
+          return { ...rest, ...updates, updatedAt: Date.now() } as Note;
+        }
+        return n;
+      }));
+      storageService.restoreNote(id, user?.uid);
+      return;
     }
 
     setNotes(prev => prev.map(n => n.id === id ? { ...n, ...updates, updatedAt: Date.now() } : n));
@@ -403,9 +454,29 @@ const App: React.FC = () => {
   };
 
   const handleDeleteNote = (id: string) => {
-    if (confirm(t.deleteConfirm)) {
-      setNotes(prev => prev.filter(n => n.id !== id));
-      storageService.deleteNote(id, user?.uid);
+    const note = notes.find(n => n.id === id);
+    if (!note) return;
+
+    if (note.deletedAt) {
+      if (confirm("Excluir permanentemente? Esta ação não pode ser desfeita.")) {
+        setNotes(prev => prev.filter(n => n.id !== id));
+        storageService.hardDeleteNote(id, user?.uid);
+      }
+    } else {
+      if (confirm(t.deleteConfirm)) {
+        setNotes(prev => prev.map(n => n.id === id ? { ...n, deletedAt: Date.now() } : n));
+        storageService.deleteNote(id, user?.uid);
+      }
+    }
+  };
+
+  const handleEmptyTrash = () => {
+    if (confirm("Deseja esvaziar a lixeira permanentemente?")) {
+      const trashedNotes = notes.filter(n => n.deletedAt);
+      setNotes(prev => prev.filter(n => !n.deletedAt));
+      trashedNotes.forEach(note => {
+        storageService.hardDeleteNote(note.id, user?.uid);
+      });
     }
   };
 
@@ -449,11 +520,11 @@ const App: React.FC = () => {
   }, [language, getTodayISO]);
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-transparent pb-24 md:pb-0">
+    <div className={`min-h-screen flex flex-col md:flex-row pb-24 md:pb-0 transition-colors duration-300 ${isGlobalDark ? 'bg-slate-900 text-white' : 'bg-transparent text-gray-900'}`}>
       <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" />
 
       {/* SIDEBAR DESKTOP */}
-      <aside className="hidden md:flex w-64 lg:w-72 bg-white/60 backdrop-blur-xl border-r p-6 flex-col gap-6 z-20">
+      <aside className={`hidden md:flex w-64 lg:w-72 border-r p-6 flex-col gap-6 z-20 ${isGlobalDark ? 'bg-slate-900/80 border-slate-700' : 'bg-white/60 backdrop-blur-xl'}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div 
@@ -468,22 +539,27 @@ const App: React.FC = () => {
               />
             </div>
             <div>
-              <h1 className="text-sm font-black text-gray-900 leading-tight uppercase">{t.appTitle}</h1>
+              <h1 className={`text-sm font-black leading-tight uppercase ${isGlobalDark ? 'text-white' : 'text-gray-900'}`}>{t.appTitle}</h1>
               <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-[0.2em]">{t.appSubtitle}</p>
             </div>
           </div>
-          <button onClick={() => setIsSettingsOpen(true)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-indigo-600 transition-all">
-            <i className="fas fa-gear"></i>
-          </button>
+          <div className="flex gap-2">
+            <button onClick={toggleDarkMode} className="w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 flex items-center justify-center text-gray-400 hover:text-indigo-600 transition-all">
+              <i className={`fas ${isGlobalDark ? 'fa-sun' : 'fa-moon'}`}></i>
+            </button>
+            <button onClick={() => setIsSettingsOpen(true)} className="w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 flex items-center justify-center text-gray-400 hover:text-indigo-600 transition-all">
+              <i className="fas fa-gear"></i>
+            </button>
+          </div>
         </div>
 
         {/* Perfil do Usuário */}
         <div className="px-1">
           {user ? (
-            <div className="flex items-center gap-3 p-3 bg-white/50 border border-indigo-100 rounded-2xl shadow-sm">
+            <div className={`flex items-center gap-3 p-3 border rounded-2xl shadow-sm ${isGlobalDark ? 'bg-slate-800 border-slate-700' : 'bg-white/50 border-indigo-100'}`}>
               <img src={user.photoURL || ''} alt="User" className="w-10 h-10 rounded-full border-2 border-indigo-500" />
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-black text-gray-800 truncate uppercase leading-none">{user.displayName}</p>
+                <p className={`text-[10px] font-black truncate uppercase leading-none ${isGlobalDark ? 'text-white' : 'text-gray-800'}`}>{user.displayName}</p>
                 <div className="flex items-center gap-1 mt-1">
                   <i className="fas fa-bolt text-indigo-500 text-[8px]"></i>
                   <p className="text-[8px] font-bold text-indigo-500 uppercase tracking-tighter">{t.syncStatus}</p>
@@ -501,13 +577,32 @@ const App: React.FC = () => {
         </div>
 
         <nav className="flex flex-col gap-1.5">
-          <button onClick={() => { setFilterColor(null); setSelectedDate(null); }} className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all font-black text-xs uppercase ${(!filterColor && !selectedDate) ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}>
+          <button onClick={() => { setCurrentView('active'); setFilterColor(null); setSelectedDate(null); setFilterTag(null); }} className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all font-black text-xs uppercase ${(currentView === 'active' && !filterColor && !selectedDate && !filterTag) ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800'}`}>
             <i className="fas fa-layer-group"></i> {t.allInsights}
           </button>
-          <button onClick={() => setSelectedDate(getTodayISO())} className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all font-black text-xs uppercase ${selectedDate === getTodayISO() ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}>
+          <button onClick={() => { setCurrentView('active'); setSelectedDate(getTodayISO()); setFilterTag(null); }} className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all font-black text-xs uppercase ${selectedDate === getTodayISO() ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800'}`}>
             <i className="fas fa-calendar-day"></i> {t.planningToday}
           </button>
+          <button onClick={() => { setCurrentView('trash'); setFilterColor(null); setSelectedDate(null); setFilterTag(null); }} className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all font-black text-xs uppercase ${currentView === 'trash' ? 'bg-red-50 text-red-600 shadow-sm' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800'}`}>
+            <i className="fas fa-trash"></i> Lixeira
+          </button>
         </nav>
+
+        {/* Tags Section */}
+        {allTags.length > 0 && currentView !== 'trash' && (
+          <div className="mt-2">
+            <div className="flex justify-between items-center px-3 mb-3">
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tags</p>
+            </div>
+            <div className="flex flex-wrap gap-2 px-3">
+              {allTags.map(tag => (
+                <button key={tag} onClick={() => { setCurrentView('active'); setFilterTag(filterTag === tag ? null : tag); }} className={`text-[10px] font-black uppercase tracking-tight px-2 py-1 rounded-lg transition-all ${filterTag === tag ? 'bg-indigo-600 text-white' : isGlobalDark ? 'bg-slate-800 text-gray-400 hover:bg-slate-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                  {tag}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-4">
            <div className="flex justify-between items-center px-3 mb-4">
@@ -538,7 +633,7 @@ const App: React.FC = () => {
 
       {/* CONTEÚDO PRINCIPAL */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="px-6 py-4 md:py-6 md:px-10 flex flex-col md:flex-row items-center justify-between gap-6 sticky top-0 z-30 bg-white/40 backdrop-blur-md border-b">
+        <header className={`px-6 py-4 md:py-6 md:px-10 flex flex-col md:flex-row items-center justify-between gap-6 sticky top-0 z-30 backdrop-blur-md border-b transition-colors ${isGlobalDark ? 'bg-slate-900/80 border-slate-700' : 'bg-white/40 border-slate-200'}`}>
           <div className="flex items-center justify-between w-full md:hidden mb-2">
             <div 
               className="flex items-center gap-3 cursor-pointer active:scale-95" 
@@ -550,9 +645,12 @@ const App: React.FC = () => {
                 className={`w-11 h-11 object-contain transition-all ${isLogoSpinning ? 'animate-spin-once' : ''}`} 
                 alt="Logo" 
               />
-              <span className="font-black text-gray-900 text-sm tracking-tight uppercase">{t.appSubtitle}</span>
+              <span className={`font-black text-sm tracking-tight uppercase ${isGlobalDark ? 'text-white' : 'text-gray-900'}`}>{t.appSubtitle}</span>
             </div>
             <div className="flex items-center gap-2">
+              <button onClick={toggleDarkMode} className="p-2 text-gray-500 hover:text-indigo-500">
+                <i className={`fas ${isGlobalDark ? 'fa-sun' : 'fa-moon'}`}></i>
+              </button>
               <button onClick={() => setIsSearchActive(!isSearchActive)} className="p-2 text-gray-500">
                 <i className={`fas ${isSearchActive ? 'fa-times' : 'fa-search'}`}></i>
               </button>
@@ -563,7 +661,7 @@ const App: React.FC = () => {
 
           <div className={`flex-1 max-w-3xl w-full relative group ${!isSearchActive && 'hidden md:block'}`}>
             <i className="fas fa-search absolute left-5 top-1/2 -translate-y-1/2 text-gray-400"></i>
-            <input type="text" placeholder={t.searchPlaceholder} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-[1.5rem] shadow-sm focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 transition-all outline-none text-sm font-semibold" />
+            <input type="text" placeholder={t.searchPlaceholder} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`w-full pl-12 pr-6 py-4 border rounded-[1.5rem] shadow-sm focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 transition-all outline-none text-sm font-semibold ${isGlobalDark ? 'bg-slate-800 border-slate-600 text-white focus:ring-indigo-500/20 placeholder-gray-500' : 'bg-white border-slate-200 text-gray-900 focus:ring-indigo-50'}`} />
           </div>
 
           <div className="hidden md:flex items-center gap-4">
@@ -591,23 +689,32 @@ const App: React.FC = () => {
           </div>
 
           {/* Timeline Section */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-black text-gray-900 tracking-tight">{t.timeline}</h2>
-              <button onClick={() => setSelectedDate(null)} className={`text-[10px] font-black uppercase transition-colors ${!selectedDate ? 'text-indigo-600' : 'text-gray-400'}`}>
-                {t.viewAll}
+          {currentView === 'active' ? (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-black text-gray-900 dark:text-white tracking-tight">{t.timeline}</h2>
+                <button onClick={() => setSelectedDate(null)} className={`text-[10px] font-black uppercase transition-colors ${!selectedDate ? 'text-indigo-600' : 'text-gray-400'}`}>
+                  {t.viewAll}
+                </button>
+              </div>
+              <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide no-scrollbar -mx-1 px-1">
+                {timelineDates.map(date => (
+                  <button key={date.full} onClick={() => setSelectedDate(selectedDate === date.full ? null : date.full)} className={`flex-shrink-0 w-16 h-20 rounded-[1.5rem] flex flex-col items-center justify-center gap-1 transition-all border-2 ${selectedDate === date.full ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl shadow-indigo-100 dark:shadow-none scale-110' : 'bg-white dark:bg-slate-800 border-gray-100 dark:border-slate-700 text-gray-400 hover:border-indigo-200'}`}>
+                    <span className="text-[9px] font-black uppercase tracking-tighter opacity-70">{date.weekday}</span>
+                    <span className="text-lg font-black">{date.day}</span>
+                    {date.isToday && <span className={`w-1.5 h-1.5 rounded-full ${selectedDate === date.full ? 'bg-white' : 'bg-indigo-500'}`}></span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between mb-4 mt-2">
+              <h2 className="text-xl font-black text-gray-900 dark:text-white tracking-tight">Lixeira</h2>
+              <button onClick={handleEmptyTrash} className="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl text-xs font-black uppercase hover:bg-red-200 transition-colors">
+                Esvaziar Lixeira
               </button>
             </div>
-            <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide no-scrollbar -mx-1 px-1">
-              {timelineDates.map(date => (
-                <button key={date.full} onClick={() => setSelectedDate(selectedDate === date.full ? null : date.full)} className={`flex-shrink-0 w-16 h-20 rounded-[1.5rem] flex flex-col items-center justify-center gap-1 transition-all border-2 ${selectedDate === date.full ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl shadow-indigo-100 scale-110' : 'bg-white border-gray-100 text-gray-400 hover:border-indigo-200'}`}>
-                  <span className="text-[9px] font-black uppercase tracking-tighter opacity-70">{date.weekday}</span>
-                  <span className="text-lg font-black">{date.day}</span>
-                  {date.isToday && <span className={`w-1.5 h-1.5 rounded-full ${selectedDate === date.full ? 'bg-white' : 'bg-indigo-500'}`}></span>}
-                </button>
-              ))}
-            </div>
-          </div>
+          )}
 
           {/* Color Filter Section Mobile */}
           <div className="md:hidden">
@@ -640,37 +747,38 @@ const App: React.FC = () => {
               <p className="font-black uppercase tracking-widest text-xs">{t.loading}</p>
             </div>
           ) : filteredNotes.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-8 md:gap-10 animate-in fade-in duration-1000">
+            <div className="columns-1 sm:columns-2 xl:columns-3 gap-8 md:gap-10 space-y-8 md:space-y-10 animate-in fade-in duration-1000">
               {filteredNotes.map(note => (
-                <NoteCard 
-                  key={note.id} 
-                  note={note} 
-                  language={language} 
-                  onEdit={(n) => { setEditingNote(n); setIsFormOpen(true); }} 
-                  onDelete={handleDeleteNote} 
-                  onUpdate={handleUpdateNoteField}
-                  isDragging={draggedNoteId === note.id || touchActiveId === note.id}
-                  isDragOver={dragOverNoteId === note.id}
-                  onDragStart={(e) => handleDragStart(e, note.id)}
-                  onDragOver={(e) => handleDragOver(e, note.id)}
-                  onDragLeave={(e) => handleDragLeave(e, note.id)}
-                  onDrop={(e) => handleDrop(e, note.id)}
-                  onDragEnd={handleDragEnd}
-                  onTouchStart={(e) => handleTouchStart(e, note.id)}
-                  onTouchMove={handleTouchMove}
-                  onTouchEnd={handleTouchEnd}
-                />
+                <div key={note.id} className="break-inside-avoid">
+                  <NoteCard 
+                    note={note} 
+                    language={language} 
+                    onEdit={(n) => { setEditingNote(n); setIsFormOpen(true); }} 
+                    onDelete={handleDeleteNote} 
+                    onUpdate={handleUpdateNoteField}
+                    isDragging={draggedNoteId === note.id || touchActiveId === note.id}
+                    isDragOver={dragOverNoteId === note.id}
+                    onDragStart={(e) => handleDragStart(e, note.id)}
+                    onDragOver={(e) => handleDragOver(e, note.id)}
+                    onDragLeave={(e) => handleDragLeave(e, note.id)}
+                    onDrop={(e) => handleDrop(e, note.id)}
+                    onDragEnd={handleDragEnd}
+                    onTouchStart={(e) => handleTouchStart(e, note.id)}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                  />
+                </div>
               ))}
             </div>
           ) : (
             <div className="h-[40vh] flex items-center justify-center">
               <div className="text-center max-w-sm animate-in fade-in zoom-in duration-500">
-                <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mx-auto mb-6">
+                <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ${isGlobalDark ? 'bg-slate-800 text-gray-500' : 'bg-gray-50 text-gray-300'}`}>
                   <i className="fas fa-calendar-xmark text-3xl"></i>
                 </div>
-                <h3 className="text-xl font-black text-gray-800 mb-2">{t.noNotes}</h3>
-                <p className="text-gray-400 text-sm font-semibold">{t.noNotesDesc}</p>
-                <Button variant="ghost" className="mt-6 text-sm font-black text-indigo-600 uppercase tracking-widest" onClick={() => setIsFormOpen(true)}>
+                <h3 className={`text-xl font-black mb-2 ${isGlobalDark ? 'text-white' : 'text-gray-800'}`}>{t.noNotes}</h3>
+                <p className={`text-sm font-semibold ${isGlobalDark ? 'text-gray-400' : 'text-gray-400'}`}>{t.noNotesDesc}</p>
+                <Button variant="ghost" className="mt-6 text-sm font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest hover:bg-indigo-50 dark:hover:bg-slate-800" onClick={() => setIsFormOpen(true)}>
                   {t.startWriting}
                 </Button>
               </div>
@@ -682,16 +790,16 @@ const App: React.FC = () => {
       {/* MODAL CONFIGURAÇÕES */}
       {isSettingsOpen && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-xl z-[70] flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white/95 glass-panel w-full max-w-lg rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-400">
+          <div className={`w-full max-w-lg rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-400 ${isGlobalDark ? 'bg-slate-900 border border-slate-700' : 'bg-white/95 glass-panel'}`}>
             <div className="p-10">
               <div className="flex justify-between items-center mb-10">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-indigo-600 ${isGlobalDark ? 'bg-indigo-900/30' : 'bg-indigo-100'}`}>
                     <i className="fas fa-gear text-2xl"></i>
                   </div>
-                  <h2 className="text-3xl font-black text-gray-900 tracking-tight">{t.settings}</h2>
+                  <h2 className={`text-3xl font-black tracking-tight ${isGlobalDark ? 'text-white' : 'text-gray-900'}`}>{t.settings}</h2>
                 </div>
-                <button onClick={() => setIsSettingsOpen(false)} className="w-12 h-12 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 transition-all">
+                <button onClick={() => setIsSettingsOpen(false)} className="w-12 h-12 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 flex items-center justify-center text-gray-400 transition-all">
                   <i className="fas fa-times text-2xl"></i>
                 </button>
               </div>
@@ -702,17 +810,17 @@ const App: React.FC = () => {
                   <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-5">Sincronização Cloud</label>
                   {!user ? (
                     <div className="space-y-3">
-                      <Button variant="secondary" className="w-full h-16 rounded-3xl text-sm font-black border-2 border-indigo-100 hover:border-indigo-300 shadow-sm" onClick={handleLogin} isLoading={isLoggingIn}>
+                      <Button variant="secondary" className={`w-full h-16 rounded-3xl text-sm font-black border-2 shadow-sm ${isGlobalDark ? 'border-slate-700 bg-slate-800 text-white' : 'border-indigo-100 hover:border-indigo-300'}`} onClick={handleLogin} isLoading={isLoggingIn}>
                         <i className="fab fa-google mr-3 text-indigo-500 text-xl"></i> {t.connectGoogle}
                       </Button>
                       {loginError && <p className="text-[10px] text-red-500 font-bold uppercase text-center mt-3 p-3 bg-red-50 rounded-xl border border-red-100">{loginError}</p>}
                     </div>
                   ) : (
-                    <div className="p-5 bg-indigo-50/50 border-2 border-indigo-100 rounded-3xl flex items-center justify-between">
+                    <div className={`p-5 rounded-3xl flex items-center justify-between border-2 ${isGlobalDark ? 'bg-indigo-900/20 border-indigo-500/30' : 'bg-indigo-50/50 border-indigo-100'}`}>
                       <div className="flex items-center gap-4">
                         <img src={user.photoURL || ''} className="w-12 h-12 rounded-2xl border-2 border-indigo-500" />
                         <div>
-                          <p className="text-sm font-black text-slate-800 uppercase leading-none">{user.displayName}</p>
+                          <p className={`text-sm font-black uppercase leading-none ${isGlobalDark ? 'text-white' : 'text-slate-800'}`}>{user.displayName}</p>
                           <p className="text-[10px] font-bold text-indigo-500 uppercase mt-1 tracking-widest">{t.syncStatus}</p>
                         </div>
                       </div>
@@ -726,10 +834,10 @@ const App: React.FC = () => {
                 <div>
                   <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-5">{t.language}</label>
                   <div className="grid grid-cols-2 gap-4">
-                    <button onClick={() => toggleLanguage(Language.PT)} className={`flex items-center justify-center gap-4 py-5 rounded-3xl border-2 transition-all font-black text-sm uppercase ${language === Language.PT ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-gray-100 text-gray-500 hover:border-indigo-200'}`}>
+                    <button onClick={() => toggleLanguage(Language.PT)} className={`flex items-center justify-center gap-4 py-5 rounded-3xl border-2 transition-all font-black text-sm uppercase ${language === Language.PT ? (isGlobalDark ? 'border-indigo-500 bg-indigo-900/30 text-indigo-300 shadow-md' : 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md') : (isGlobalDark ? 'border-slate-700 text-gray-400 hover:border-indigo-500' : 'border-gray-100 text-gray-500 hover:border-indigo-200')}`}>
                       <img src="https://flagcdn.com/w40/br.png" className="w-7 h-5 object-cover rounded shadow-sm" alt="PT" /> Português
                     </button>
-                    <button onClick={() => toggleLanguage(Language.EN)} className={`flex items-center justify-center gap-4 py-5 rounded-3xl border-2 transition-all font-black text-sm uppercase ${language === Language.EN ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-gray-100 text-gray-500 hover:border-indigo-200'}`}>
+                    <button onClick={() => toggleLanguage(Language.EN)} className={`flex items-center justify-center gap-4 py-5 rounded-3xl border-2 transition-all font-black text-sm uppercase ${language === Language.EN ? (isGlobalDark ? 'border-indigo-500 bg-indigo-900/30 text-indigo-300 shadow-md' : 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md') : (isGlobalDark ? 'border-slate-700 text-gray-400 hover:border-indigo-500' : 'border-gray-100 text-gray-500 hover:border-indigo-200')}`}>
                       <img src="https://flagcdn.com/w40/us.png" className="w-7 h-5 object-cover rounded shadow-sm" alt="EN" /> English
                     </button>
                   </div>
@@ -738,17 +846,17 @@ const App: React.FC = () => {
                 <div>
                   <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-5">{t.security}</label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <button onClick={() => storageService.exportBackup()} className="flex items-center justify-between px-6 py-5 bg-gray-50 hover:bg-indigo-50 rounded-3xl transition-all group border-2 border-transparent hover:border-indigo-100">
+                    <button onClick={() => storageService.exportBackup()} className={`flex items-center justify-between px-6 py-5 rounded-3xl transition-all group border-2 ${isGlobalDark ? 'bg-slate-800 border-slate-700 hover:border-indigo-500' : 'bg-gray-50 hover:bg-indigo-50 border-transparent hover:border-indigo-100'}`}>
                       <div className="flex items-center gap-4">
                         <i className="fas fa-file-export text-indigo-600 text-lg"></i>
-                        <span className="font-black text-gray-700 text-[10px] uppercase tracking-wider">{t.export}</span>
+                        <span className={`font-black text-[10px] uppercase tracking-wider ${isGlobalDark ? 'text-gray-300' : 'text-gray-700'}`}>{t.export}</span>
                       </div>
                       <i className="fas fa-chevron-right text-gray-300 group-hover:text-indigo-400 transition-colors"></i>
                     </button>
-                    <button onClick={handleImportClick} className="flex items-center justify-between px-6 py-5 bg-gray-50 hover:bg-emerald-50 rounded-3xl transition-all group border-2 border-transparent hover:border-emerald-100">
+                    <button onClick={handleImportClick} className={`flex items-center justify-between px-6 py-5 rounded-3xl transition-all group border-2 ${isGlobalDark ? 'bg-slate-800 border-slate-700 hover:border-emerald-500' : 'bg-gray-50 hover:bg-emerald-50 border-transparent hover:border-emerald-100'}`}>
                       <div className="flex items-center gap-4">
                         <i className="fas fa-file-import text-emerald-600 text-lg"></i>
-                        <span className="font-black text-gray-700 text-[10px] uppercase tracking-wider">{t.import}</span>
+                        <span className={`font-black text-[10px] uppercase tracking-wider ${isGlobalDark ? 'text-gray-300' : 'text-gray-700'}`}>{t.import}</span>
                       </div>
                       <i className="fas fa-chevron-right text-gray-300 group-hover:text-emerald-400 transition-colors"></i>
                     </button>
@@ -756,8 +864,8 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <div className="mt-12 pt-8 border-t border-gray-100 flex justify-center">
-                <Button variant="ghost" className="text-indigo-600 font-black tracking-[0.2em] text-xs uppercase hover:bg-indigo-50" onClick={() => setIsSettingsOpen(false)}>
+              <div className="mt-12 pt-8 border-t border-gray-100 dark:border-slate-800 flex justify-center">
+                <Button variant="ghost" className={`font-black tracking-[0.2em] text-xs uppercase ${isGlobalDark ? 'text-indigo-400 hover:bg-slate-800' : 'text-indigo-600 hover:bg-indigo-50'}`} onClick={() => setIsSettingsOpen(false)}>
                   {t.close}
                 </Button>
               </div>
@@ -777,14 +885,18 @@ const App: React.FC = () => {
       </button>
 
       {/* TAB BAR MOBILE */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t px-8 py-4 flex items-center justify-around z-50 shadow-2xl">
-        <button onClick={() => { setSelectedDate(null); setFilterColor(null); window.scrollTo({top: 0, behavior: 'smooth'}); }} className={`flex flex-col items-center gap-1.5 ${(!selectedDate && !filterColor) ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}>
+      <nav className={`md:hidden fixed bottom-0 left-0 right-0 backdrop-blur-xl border-t px-8 py-4 flex items-center justify-around z-50 shadow-2xl transition-colors ${isGlobalDark ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-gray-100'}`}>
+        <button onClick={() => { setCurrentView('active'); setSelectedDate(null); setFilterColor(null); setFilterTag(null); window.scrollTo({top: 0, behavior: 'smooth'}); }} className={`flex flex-col items-center gap-1.5 ${(currentView === 'active' && !selectedDate && !filterColor && !filterTag) ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}>
           <i className="fas fa-home text-xl"></i>
           <span className="text-[10px] font-black tracking-widest uppercase">{t.home}</span>
         </button>
-        <button onClick={() => setSelectedDate(getTodayISO())} className={`flex flex-col items-center gap-1.5 ${selectedDate === getTodayISO() ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}>
+        <button onClick={() => { setCurrentView('active'); setSelectedDate(getTodayISO()); setFilterTag(null); }} className={`flex flex-col items-center gap-1.5 ${(currentView === 'active' && selectedDate === getTodayISO()) ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}>
           <i className="fas fa-calendar-check text-xl"></i>
           <span className="text-[10px] font-black tracking-widest uppercase">{t.today}</span>
+        </button>
+        <button onClick={() => { setCurrentView('trash'); setFilterColor(null); setSelectedDate(null); setFilterTag(null); }} className={`flex flex-col items-center gap-1.5 ${currentView === 'trash' ? 'text-red-500 scale-110' : 'text-gray-400'}`}>
+          <i className="fas fa-trash text-xl"></i>
+          <span className="text-[10px] font-black tracking-widest uppercase">Lixo</span>
         </button>
         <button onClick={() => setIsSettingsOpen(true)} className={`flex flex-col items-center gap-1.5 ${isSettingsOpen ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}>
           <i className="fas fa-gear text-xl"></i>

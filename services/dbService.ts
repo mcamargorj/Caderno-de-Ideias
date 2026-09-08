@@ -192,9 +192,39 @@ export const storageService = {
   },
 
   deleteNote: async (id: string, userId?: string): Promise<void> => {
+    // Soft delete: update the deletedAt property instead of actual deletion
+    const deletedAt = Date.now();
+    if (userId && supabase) {
+      const { error } = await supabase.from('notes').update({ deletedAt }).eq('id', id);
+      if (error) console.error("Erro ao mover para a lixeira no Supabase:", error);
+    } else {
+      const storage = storageService.getStorage();
+      const index = storage.notes.findIndex(n => n.id === id);
+      if (index !== -1) {
+        storage.notes[index] = { ...storage.notes[index], deletedAt };
+        storageService.saveStorage(storage);
+      }
+    }
+  },
+
+  restoreNote: async (id: string, userId?: string): Promise<void> => {
+    if (userId && supabase) {
+      const { error } = await supabase.from('notes').update({ deletedAt: null }).eq('id', id);
+      if (error) console.error("Erro ao restaurar nota no Supabase:", error);
+    } else {
+      const storage = storageService.getStorage();
+      const index = storage.notes.findIndex(n => n.id === id);
+      if (index !== -1) {
+        delete storage.notes[index].deletedAt;
+        storageService.saveStorage(storage);
+      }
+    }
+  },
+
+  hardDeleteNote: async (id: string, userId?: string): Promise<void> => {
     if (userId && supabase) {
       const { error } = await supabase.from('notes').delete().eq('id', id);
-      if (error) console.error("Erro ao deletar no Supabase:", error);
+      if (error) console.error("Erro ao deletar permanentemente no Supabase:", error);
     } else {
       const storage = storageService.getStorage();
       const filteredNotes = storage.notes.filter(n => n.id !== id);

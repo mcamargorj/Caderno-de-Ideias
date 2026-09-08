@@ -43,6 +43,7 @@ export interface Note {
   updatedAt: number;
   userId?: string; // ID do usuário para sincronização na nuvem
   pinned?: boolean;
+  deletedAt?: number;
 }
 
 export interface StorageState {

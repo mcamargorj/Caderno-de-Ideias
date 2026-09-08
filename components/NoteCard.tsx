@@ -139,30 +139,76 @@ export const NoteCard: React.FC<NoteCardProps> = ({
       if (cardRef.current) {
         const tempId = `share-target-${note.id}`;
         cardRef.current.setAttribute('data-share-id', tempId);
+
         const canvas = await html2canvas(cardRef.current, {
           backgroundColor: isDarkTheme ? '#0f172a' : '#ffffff',
           scale: 3, 
           useCORS: true,
+          scrollX: 0,
+          scrollY: 0,
+          logging: false,
           onclone: (clonedDoc) => {
             const clonedCard = clonedDoc.querySelector(`[data-share-id="${tempId}"]`) as HTMLElement;
             if (clonedCard) {
-              // Oculta elementos que não devem aparecer na imagem compartilhada
+              // 1. Oculta controles interativos que não devem aparecer na imagem
               const elementsToHide = clonedCard.querySelectorAll('.action-icons-container, .ai-button-container, .share-exclude');
               elementsToHide.forEach(el => {
                 (el as HTMLElement).style.display = 'none';
               });
               
-              // Ajusta a borda inferior se necessário para ficar limpo
-              const footer = clonedCard.querySelector('.footer-metadata') as HTMLElement;
-              if (footer) footer.style.border = 'none';
+              // 2. Remove restrições de corte e altura fixa no card clonado
+              clonedCard.style.overflow = 'visible';
+              clonedCard.style.height = 'auto';
+              clonedCard.style.minHeight = 'auto';
+              clonedCard.style.maxHeight = 'none';
+              clonedCard.style.transform = 'none';
+              clonedCard.style.paddingBottom = '40px'; // Respiro generoso na base do card
+
+              // 3. Remove limitações de line-clamp e overflow no parágrafo do texto
+              const contentParagraph = clonedCard.querySelector('p') as HTMLElement;
+              if (contentParagraph) {
+                contentParagraph.style.display = 'block';
+                contentParagraph.style.webkitLineClamp = 'unset';
+                contentParagraph.style.webkitBoxOrient = 'unset';
+                contentParagraph.style.overflow = 'visible';
+                contentParagraph.style.height = 'auto';
+                contentParagraph.style.maxHeight = 'none';
+                contentParagraph.style.lineHeight = '1.65';
+                contentParagraph.style.marginBottom = '20px';
+                contentParagraph.style.paddingBottom = '24px'; // Espaço extra para evitar corte dos caracteres inferiores (g, j, p, q, y)
+              }
+
+              // 4. Oculta o rodapé vazio para evitar gaps estranhos
+              const footerContainer = clonedCard.querySelector('.footer-metadata')?.parentElement as HTMLElement;
+              if (footerContainer) {
+                footerContainer.style.display = 'none';
+              }
             }
           }
         });
+
         cardRef.current.removeAttribute('data-share-id');
         const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
-        if (blob && navigator.share) {
-          const file = new File([blob], 'insight.png', { type: 'image/png' });
-          await navigator.share({ files: [file], title: note.title });
+        
+        if (blob) {
+          const fileName = `${(note.title || 'insight').slice(0, 25).replace(/[^a-zA-Z0-9]/g, '_')}.png`;
+          const file = new File([blob], fileName, { type: 'image/png' });
+
+          if (navigator.share) {
+            try {
+              await navigator.share({ files: [file], title: note.title || 'Insight' });
+            } catch (shareErr) {
+              // Se o usuário cancelou o compartilhamento nativo, não faz nada
+              console.log("Compartilhamento nativo cancelado ou falhou:", shareErr);
+            }
+          } else {
+            // Fallback para download da imagem caso o navegador não suporte Web Share API
+            const link = document.createElement('a');
+            link.download = fileName;
+            link.href = URL.createObjectURL(blob);
+            link.click();
+            URL.revokeObjectURL(link.href);
+          }
         }
       }
     } catch (e) {
@@ -175,6 +221,49 @@ export const NoteCard: React.FC<NoteCardProps> = ({
   const handleSaveInline = () => {
     onUpdate(note.id, { title: editTitle, content: editContent });
     setIsEditing(false);
+  };
+
+  const handleToggleChecklist = (e: React.MouseEvent, lineIndex: number, currentLine: string, isChecked: boolean) => {
+    e.stopPropagation();
+    const lines = note.content.split('\n');
+    if (isChecked) {
+      lines[lineIndex] = currentLine.replace(/-\s*\[x\]/i, '- [ ]');
+    } else {
+      lines[lineIndex] = currentLine.replace(/-\s*\[\s*\]/, '- [x]');
+    }
+    onUpdate(note.id, { content: lines.join('\n') });
+  };
+
+  const renderContent = () => {
+    const lines = note.content.split('\n');
+    return (
+      <div className={`${subTextColor} text-base flex-1 font-medium text-left leading-relaxed mb-6 overflow-hidden`}>
+        {lines.map((line, i) => {
+          const isUnchecked = line.trim().startsWith('- [ ]');
+          const isChecked = line.trim().match(/^-\s*\[[xX]\]/);
+          
+          if (isUnchecked || isChecked) {
+            const textContent = line.replace(/^-\s*\[[xX\s]\]\s*/i, '');
+            return (
+              <div key={i} className="flex items-start gap-3 my-1.5 cursor-pointer group" onClick={(e) => { e.stopPropagation(); handleToggleChecklist(e, i, line, !!isChecked); }}>
+                <div className={`mt-1 flex items-center justify-center w-5 h-5 rounded border transition-all ${isChecked ? 'bg-indigo-500 border-indigo-500 text-white' : `border-[currentColor] opacity-50 group-hover:opacity-100`}`}>
+                  {isChecked && <i className="fas fa-check text-[10px]"></i>}
+                </div>
+                <span className={`flex-1 transition-all ${isChecked ? 'line-through opacity-50' : 'group-hover:opacity-80'}`} onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}>
+                  {textContent}
+                </span>
+              </div>
+            );
+          }
+
+          return (
+            <div key={i} className="min-h-[1.5rem] whitespace-pre-wrap hover:opacity-85 transition-opacity" onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}>
+              {line}
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   const formattedUpdateDate = new Date(note.updatedAt).toLocaleDateString(language, { day: '2-digit', month: 'short' });
@@ -263,9 +352,21 @@ export const NoteCard: React.FC<NoteCardProps> = ({
           <button onClick={handleShare} title="Compartilhar" className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${isSharing ? 'bg-indigo-500 text-white' : `hover:bg-black/10 ${iconColor}`}`}>
             <i className={`fas ${isSharing ? 'fa-spinner fa-spin' : 'fa-share-nodes'} text-sm`}></i>
           </button>
-          <button onClick={(e) => { e.stopPropagation(); onDelete(note.id); }} className={`w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-500 hover:text-white ${isDarkTheme ? 'text-gray-500' : 'text-gray-400'} transition-all`}>
-            <i className="fas fa-trash-can text-sm"></i>
-          </button>
+          
+          {note.deletedAt ? (
+            <>
+              <button onClick={(e) => { e.stopPropagation(); onUpdate(note.id, { deletedAt: undefined }); }} className={`w-8 h-8 flex items-center justify-center rounded-full hover:bg-emerald-500 hover:text-white ${isDarkTheme ? 'text-gray-500' : 'text-gray-400'} transition-all`} title="Restaurar">
+                <i className="fas fa-trash-arrow-up text-sm"></i>
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); onDelete(note.id); }} className={`w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-500 hover:text-white ${isDarkTheme ? 'text-gray-500' : 'text-gray-400'} transition-all`} title="Excluir Permanentemente">
+                <i className="fas fa-xmark text-lg"></i>
+              </button>
+            </>
+          ) : (
+            <button onClick={(e) => { e.stopPropagation(); onDelete(note.id); }} className={`w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-500 hover:text-white ${isDarkTheme ? 'text-gray-500' : 'text-gray-400'} transition-all`}>
+              <i className="fas fa-trash-can text-sm"></i>
+            </button>
+          )}
         </div>
       </div>
 
@@ -314,9 +415,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({
             </h3>
           </div>
 
-          <p className={`${subTextColor} text-base flex-1 font-medium whitespace-pre-wrap text-left leading-relaxed mb-6 line-clamp-[15] hover:opacity-85 transition-opacity`} onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}>
-            {note.content}
-          </p>
+          {renderContent()}
         </>
       )}
 

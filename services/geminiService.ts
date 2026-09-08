@@ -1,5 +1,4 @@
 
-import { GoogleGenAI, Modality } from "@google/genai";
 import { Language } from "../types";
 
 // Helper: Decodifica base64 para Uint8Array
@@ -47,36 +46,31 @@ export class GeminiService {
   }
 
   async getDailyInsight(lang: Language = Language.PT): Promise<string> {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const prompt = lang === Language.PT 
-      ? "Gere uma frase curta, inspiradora e produtiva sobre criatividade em Português do Brasil. Máximo 15 palavras."
-      : "Generate a short, inspiring and productive quote about creativity in English. Maximum 15 words.";
-    
     try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: { temperature: 0.9 },
+      const response = await fetch("/api/gemini/daily-insight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lang: lang === Language.PT ? "PT" : "EN" })
       });
-      return response.text?.trim() || (lang === Language.PT ? "Sua criatividade é sua melhor ferramenta." : "Your creativity is your best tool.");
+      const data = await response.json();
+      if (data.text) {
+        return data.text;
+      }
+      return lang === Language.PT ? "Sua criatividade é sua melhor ferramenta." : "Your creativity is your best tool.";
     } catch {
       return lang === Language.PT ? "Foco e organização levam ao sucesso." : "Focus and organization lead to success.";
     }
   }
 
   async enhanceNote(content: string, lang: Language = Language.PT): Promise<string> {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const systemPrompt = lang === Language.PT
-      ? `Aja como um editor profissional. Melhore este texto, tornando-o mais claro e profissional em Português do Brasil. Responda APENAS com o texto melhorado. Texto: "${content}"`
-      : `Act as a professional editor. Improve this text, making it clearer and more professional in English. Answer ONLY with the improved text. Text: "${content}"`;
-    
     try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: systemPrompt,
-        config: { temperature: 0.7 },
+      const response = await fetch("/api/gemini/enhance-note", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content, lang: lang === Language.PT ? "PT" : "EN" })
       });
-      return response.text?.trim() || content;
+      const data = await response.json();
+      return data.text || content;
     } catch (error: any) {
       console.error("Erro na melhoria de texto:", error);
       throw error;
@@ -84,24 +78,15 @@ export class GeminiService {
   }
 
   async speak(text: string, lang: Language = Language.PT): Promise<void> {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     try {
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: text }] }],
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: lang === Language.PT ? 'Kore' : 'Zephyr' },
-            },
-          },
-        },
+      const response = await fetch("/api/gemini/speak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, lang: lang === Language.PT ? "PT" : "EN" })
       });
-
-      const audioPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-      const base64Audio = audioPart?.inlineData?.data;
+      const data = await response.json();
       
+      const base64Audio = data.audio;
       if (base64Audio) {
         const ctx = this.getAudioContext();
         const audioBuffer = await decodeAudioData(decode(base64Audio), ctx, 24000, 1);
@@ -110,9 +95,9 @@ export class GeminiService {
         source.connect(ctx.destination);
         source.start();
       } else {
-        throw new Error();
+        throw new Error("No audio returned");
       }
-    } catch {
+    } catch (e) {
       this.fallbackSpeak(text, lang);
     }
   }

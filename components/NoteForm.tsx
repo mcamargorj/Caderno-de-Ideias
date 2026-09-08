@@ -51,11 +51,47 @@ export const NoteForm: React.FC<NoteFormProps> = ({ note, language, onSave, onCa
   const [time, setTime] = useState(note?.time || '');
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [viewDate, setViewDate] = useState(new Date());
+  const [isRecording, setIsRecording] = useState(false);
   
   const datePickerRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
   const ft = formTranslations[language];
 
   useEffect(() => {
+    // Inicializar Speech Recognition se suportado
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = true;
+      recognitionRef.current.interimResults = true;
+      
+      recognitionRef.current.onresult = (event: any) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+        
+        if (finalTranscript) {
+          setContent(prev => prev + (prev.length > 0 && !prev.endsWith(' ') ? ' ' : '') + finalTranscript);
+        }
+      };
+
+      recognitionRef.current.onerror = (event: any) => {
+        console.error("Speech recognition error", event.error);
+        setIsRecording(false);
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsRecording(false);
+      };
+    }
+
     if (note) {
       setTitle(note.title);
       setContent(note.content);
@@ -76,8 +112,25 @@ export const NoteForm: React.FC<NoteFormProps> = ({ note, language, onSave, onCa
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const toggleRecording = () => {
+    if (isRecording) {
+      recognitionRef.current?.stop();
+    } else {
+      if (recognitionRef.current) {
+        recognitionRef.current.lang = language;
+        recognitionRef.current.start();
+        setIsRecording(true);
+      } else {
+        alert("O seu navegador não suporta ditado por voz.");
+      }
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isRecording) {
+      recognitionRef.current?.stop();
+    }
     if (!content.trim()) return;
     onSave({ title, content, color, date: date || undefined, time: time || undefined });
   };
@@ -236,8 +289,18 @@ export const NoteForm: React.FC<NoteFormProps> = ({ note, language, onSave, onCa
             </div>
           </div>
 
-          <div>
-            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">{ft.labelContent}</label>
+          <div className="relative">
+            <div className="flex justify-between items-end mb-1.5 ml-1">
+              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest">{ft.labelContent}</label>
+              <button 
+                type="button" 
+                onClick={toggleRecording}
+                className={`flex items-center justify-center w-8 h-8 rounded-full transition-all ${isRecording ? 'bg-red-100 text-red-500 animate-pulse' : 'bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-indigo-500'}`}
+                title="Ditar texto"
+              >
+                <i className={`fas ${isRecording ? 'fa-microphone-lines' : 'fa-microphone'}`}></i>
+              </button>
+            </div>
             <textarea 
               value={content}
               onChange={(e) => setContent(e.target.value)}
