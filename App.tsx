@@ -115,7 +115,9 @@ const App: React.FC = () => {
   };
 
   const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null);
+  const [dragOverNoteId, setDragOverNoteId] = useState<string | null>(null);
   const [touchActiveId, setTouchActiveId] = useState<string | null>(null);
+  const isReorderingRef = useRef(false);
 
   const t = translations[language];
 
@@ -138,7 +140,9 @@ const App: React.FC = () => {
     if (user) {
       setIsSyncing(true);
       return storageService.syncWithCloud(user.uid, (cloudNotes) => {
-        setNotes(cloudNotes);
+        if (!isReorderingRef.current) {
+          setNotes(cloudNotes);
+        }
         setIsLoading(false);
         setIsSyncing(false);
       });
@@ -287,62 +291,93 @@ const App: React.FC = () => {
     storageService.updateNote(id, updates, user?.uid);
   };
 
-  // Drag and drop ordering handlers
-  const handleDragReorder = async (reorderedNotes: Note[]) => {
-    const now = Date.now();
-    const updated = reorderedNotes.map((note, index) => ({
-      ...note,
-      updatedAt: now - index * 60 * 1000 // decreasing timestamps of 1 minute offsets
-    }));
-
-    setNotes(updated);
-
-    if (user) {
-      setIsSyncing(true);
-      try {
-        await Promise.all(
-          updated.map(note => storageService.updateNote(note.id, { updatedAt: note.updatedAt }, user.uid))
-        );
-      } catch (err) {
-        console.error("Dnd save cloud error:", err);
-      } finally {
-        setIsSyncing(false);
-      }
-    } else {
-      const storage = storageService.getStorage();
-      storageService.saveStorage({ ...storage, notes: updated });
+  // Reordenação por arraste confiável (Desktop e Mobile)
+  const executeReorder = (sourceId: string, targetId: string) => {
+    if (!sourceId || !targetId || sourceId === targetId) {
+      setDraggedNoteId(null);
+      setDragOverNoteId(null);
+      setTouchActiveId(null);
+      return;
     }
+
+    isReorderingRef.current = true;
+
+    setNotes(prevNotes => {
+      const sourceIndex = prevNotes.findIndex(n => n.id === sourceId);
+      const targetIndex = prevNotes.findIndex(n => n.id === targetId);
+
+      if (sourceIndex === -1 || targetIndex === -1) return prevNotes;
+
+      const updated = [...prevNotes];
+      const [moved] = updated.splice(sourceIndex, 1);
+      updated.splice(targetIndex, 0, moved);
+
+      // Timestamps estritamente decrescentes para que a ordenação 'updatedAt DESC' persista a ordem exata
+      const baseTime = Date.now();
+      const ordered = updated.map((note, index) => ({
+        ...note,
+        updatedAt: baseTime - index * 1000
+      }));
+
+      // Salva local e remotamente de forma atômica
+      storageService.reorderNotes(ordered, user?.uid).finally(() => {
+        setTimeout(() => {
+          isReorderingRef.current = false;
+        }, 1500);
+      });
+
+      return ordered;
+    });
+
+    setDraggedNoteId(null);
+    setDragOverNoteId(null);
+    setTouchActiveId(null);
   };
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedNoteId(id);
     if (e.dataTransfer) {
+      e.dataTransfer.setData('text/plain', id);
       e.dataTransfer.effectAllowed = 'move';
     }
   };
 
   const handleDragOver = (e: React.DragEvent, hoveredId: string) => {
     e.preventDefault();
-    if (!draggedNoteId || draggedNoteId === hoveredId) return;
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move';
+    }
+    if (draggedNoteId && draggedNoteId !== hoveredId && dragOverNoteId !== hoveredId) {
+      setDragOverNoteId(hoveredId);
+    }
+  };
 
-    const draggedIndex = notes.findIndex(n => n.id === draggedNoteId);
-    const hoveredIndex = notes.findIndex(n => n.id === hoveredId);
+  const handleDragLeave = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    if (dragOverNoteId === id) {
+      setDragOverNoteId(null);
+    }
+  };
 
-    if (draggedIndex !== -1 && hoveredIndex !== -1) {
-      const updatedNotes = [...notes];
-      const [removed] = updatedNotes.splice(draggedIndex, 1);
-      updatedNotes.splice(hoveredIndex, 0, removed);
-      setNotes(updatedNotes);
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    const sourceId = e.dataTransfer?.getData('text/plain') || draggedNoteId;
+    if (sourceId && targetId) {
+      executeReorder(sourceId, targetId);
+    } else {
+      setDraggedNoteId(null);
+      setDragOverNoteId(null);
     }
   };
 
   const handleDragEnd = () => {
     setDraggedNoteId(null);
-    handleDragReorder(notes);
+    setDragOverNoteId(null);
   };
 
   const handleTouchStart = (e: React.TouchEvent, id: string) => {
     setTouchActiveId(id);
+    setDragOverNoteId(null);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -353,23 +388,17 @@ const App: React.FC = () => {
     if (cardElement) {
       const hoveredId = cardElement.getAttribute('data-note-id');
       if (hoveredId && hoveredId !== touchActiveId) {
-        const draggedIndex = notes.findIndex(n => n.id === touchActiveId);
-        const hoveredIndex = notes.findIndex(n => n.id === hoveredId);
-        
-        if (draggedIndex !== -1 && hoveredIndex !== -1) {
-          const updatedNotes = [...notes];
-          const [removed] = updatedNotes.splice(draggedIndex, 1);
-          updatedNotes.splice(hoveredIndex, 0, removed);
-          setNotes(updatedNotes);
-        }
+        setDragOverNoteId(hoveredId);
       }
     }
   };
 
   const handleTouchEnd = () => {
-    if (touchActiveId) {
+    if (touchActiveId && dragOverNoteId && touchActiveId !== dragOverNoteId) {
+      executeReorder(touchActiveId, dragOverNoteId);
+    } else {
       setTouchActiveId(null);
-      handleDragReorder(notes);
+      setDragOverNoteId(null);
     }
   };
 
@@ -621,8 +650,11 @@ const App: React.FC = () => {
                   onDelete={handleDeleteNote} 
                   onUpdate={handleUpdateNoteField}
                   isDragging={draggedNoteId === note.id || touchActiveId === note.id}
+                  isDragOver={dragOverNoteId === note.id}
                   onDragStart={(e) => handleDragStart(e, note.id)}
                   onDragOver={(e) => handleDragOver(e, note.id)}
+                  onDragLeave={(e) => handleDragLeave(e, note.id)}
+                  onDrop={(e) => handleDrop(e, note.id)}
                   onDragEnd={handleDragEnd}
                   onTouchStart={(e) => handleTouchStart(e, note.id)}
                   onTouchMove={handleTouchMove}

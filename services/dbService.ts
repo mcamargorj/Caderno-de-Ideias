@@ -146,14 +146,14 @@ export const storageService = {
       if (error) console.error("Erro ao salvar no Supabase:", error);
     } else {
       const storage = storageService.getStorage();
-      storage.notes.push(newNote);
+      storage.notes.unshift(newNote);
       storageService.saveStorage(storage);
     }
     return newNote;
   },
 
   updateNote: async (id: string, updates: Partial<Note>, userId?: string): Promise<void> => {
-    const updatedAt = Date.now();
+    const updatedAt = updates.updatedAt !== undefined ? updates.updatedAt : Date.now();
     if (userId && supabase) {
       const { error } = await supabase
         .from('notes')
@@ -166,6 +166,27 @@ export const storageService = {
       if (index !== -1) {
         storage.notes[index] = { ...storage.notes[index], ...updates, updatedAt };
         storageService.saveStorage(storage);
+      }
+    }
+  },
+
+  reorderNotes: async (orderedNotes: Note[], userId?: string): Promise<void> => {
+    // 1. Sempre atualiza o armazenamento local imediatamente
+    const storage = storageService.getStorage();
+    storage.notes = orderedNotes;
+    storageService.saveStorage(storage);
+
+    // 2. Se o usuário estiver autenticado no Supabase, salva atômico via upsert
+    if (userId && supabase && orderedNotes.length > 0) {
+      try {
+        const { error } = await supabase
+          .from('notes')
+          .upsert(orderedNotes, { onConflict: 'id' });
+        if (error) {
+          console.error("Erro ao reordenar notas no Supabase:", error);
+        }
+      } catch (err) {
+        console.error("Exceção ao persistir ordenação no Supabase:", err);
       }
     }
   },

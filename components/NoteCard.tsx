@@ -13,8 +13,12 @@ interface NoteCardProps {
   onUpdate: (id: string, updates: Partial<Note>) => void;
   // Drag and drop support
   isDragging?: boolean;
+  isDragOver?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
   onDragOver?: (e: React.DragEvent) => void;
+  onDragEnter?: (e: React.DragEvent) => void;
+  onDragLeave?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent) => void;
   onDragEnd?: () => void;
   onTouchStart?: (e: React.TouchEvent) => void;
   onTouchMove?: (e: React.TouchEvent) => void;
@@ -28,8 +32,12 @@ export const NoteCard: React.FC<NoteCardProps> = ({
   onDelete, 
   onUpdate,
   isDragging,
+  isDragOver,
   onDragStart,
   onDragOver,
+  onDragEnter,
+  onDragLeave,
+  onDrop,
   onDragEnd,
   onTouchStart,
   onTouchMove,
@@ -179,8 +187,15 @@ export const NoteCard: React.FC<NoteCardProps> = ({
       draggable={!isEditing}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
       onDragEnd={onDragEnd}
-      className={`sticky-note w-full min-h-[360px] h-auto ${note.color} p-7 shadow-lg relative flex flex-col cursor-pointer border border-black/5 rounded-sm overflow-hidden transition-all hover:shadow-2xl ${isDragging ? 'opacity-40 border-dashed border-indigo-500 scale-95' : ''}`}
+      className={`sticky-note w-full min-h-[360px] h-auto ${note.color} p-7 shadow-lg relative flex flex-col cursor-pointer border border-black/5 rounded-sm overflow-hidden transition-all duration-200 hover:shadow-2xl ${
+        isDragging ? 'opacity-30 scale-95 border-dashed border-2 border-indigo-500 shadow-inner' : ''
+      } ${
+        isDragOver ? 'ring-4 ring-indigo-500 ring-offset-2 scale-[1.02] shadow-2xl z-20 border-indigo-400' : ''
+      }`}
       onClick={() => { if (!isEditing) onEdit(note); }}
     >
       {!isDarkTheme && note.color !== NoteColor.PAPER && (
