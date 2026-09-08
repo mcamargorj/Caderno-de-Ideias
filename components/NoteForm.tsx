@@ -266,6 +266,12 @@ export const NoteForm: React.FC<NoteFormProps> = ({ note, language, onSave, onCa
                     {val === NoteColor.TECH && <i className={`fas fa-microchip text-[10px] ${isActive ? 'text-sky-400' : 'text-sky-300 opacity-50'}`}></i>}
                     {val === NoteColor.GALAXY && <i className={`fas fa-user-astronaut text-[10px] ${isActive ? 'text-white' : 'text-white/40'}`}></i>}
                     {val === NoteColor.PAPER && <i className={`fas fa-pen-nib text-[10px] ${isActive ? 'text-red-500' : 'text-red-400 opacity-50'}`}></i>}
+                    {val === NoteColor.COFFEE && <i className={`fas fa-mug-hot text-[10px] ${isActive ? 'text-amber-800' : 'text-amber-700 opacity-50'}`}></i>}
+                    {val === NoteColor.CYBERPUNK && <i className={`fas fa-bolt text-[10px] ${isActive ? 'text-fuchsia-400' : 'text-fuchsia-300 opacity-50'}`}></i>}
+                    {val === NoteColor.SUNSET && <i className={`fas fa-sun text-[10px] ${isActive ? 'text-orange-500' : 'text-orange-400 opacity-50'}`}></i>}
+                    {val === NoteColor.OCEAN && <i className={`fas fa-water text-[10px] ${isActive ? 'text-cyan-400' : 'text-cyan-300 opacity-50'}`}></i>}
+                    {val === NoteColor.MIDNIGHT && <i className={`fas fa-moon text-[10px] ${isActive ? 'text-indigo-400' : 'text-slate-400 opacity-50'}`}></i>}
+                    {val === NoteColor.FOREST && <i className={`fas fa-tree text-[10px] ${isActive ? 'text-emerald-400' : 'text-emerald-300 opacity-50'}`}></i>}
                   </button>
                 );
               })}

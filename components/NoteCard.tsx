@@ -53,7 +53,15 @@ export const NoteCard: React.FC<NoteCardProps> = ({
     setEditContent(note.content);
   }, [note.title, note.content]);
 
-  const isDarkTheme = [NoteColor.CELEBRATION, NoteColor.TECH, NoteColor.GALAXY].includes(note.color);
+  const isDarkTheme = [
+    NoteColor.CELEBRATION, 
+    NoteColor.TECH, 
+    NoteColor.GALAXY, 
+    NoteColor.CYBERPUNK, 
+    NoteColor.OCEAN, 
+    NoteColor.MIDNIGHT, 
+    NoteColor.FOREST
+  ].includes(note.color);
   
   const textColor = isDarkTheme ? 'text-white' : 'text-gray-900';
   const subTextColor = isDarkTheme ? 'text-gray-300' : 'text-slate-700';

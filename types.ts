@@ -11,7 +11,13 @@ export enum NoteColor {
   ZEN = 'theme-zen',
   TECH = 'theme-tech',
   GALAXY = 'theme-galaxy',
-  PAPER = 'theme-paper'
+  PAPER = 'theme-paper',
+  COFFEE = 'theme-coffee',
+  CYBERPUNK = 'theme-cyberpunk',
+  SUNSET = 'theme-sunset',
+  OCEAN = 'theme-ocean',
+  MIDNIGHT = 'theme-midnight',
+  FOREST = 'theme-forest'
 }
 
 export enum Language {

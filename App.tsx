@@ -492,7 +492,7 @@ const App: React.FC = () => {
            <div className="grid grid-cols-4 gap-3 px-3">
             {Object.values(NoteColor).map(color => (
               <button key={color} onClick={() => setFilterColor(filterColor === color ? null : color)} className={`w-8 h-8 rounded-full shadow-sm transition-all active:scale-90 border-2 flex items-center justify-center ${color} ${filterColor === color ? 'border-indigo-600 scale-125 shadow-lg' : 'border-transparent hover:scale-110'}`}>
-                {filterColor === color && <i className={`fas fa-check text-[10px] ${['bg-yellow-200', 'bg-blue-200', 'bg-green-200', 'bg-pink-200', 'bg-purple-200', 'bg-orange-200', 'theme-zen', 'theme-paper'].includes(color) ? 'text-indigo-600' : 'text-white'}`}></i>}
+                {filterColor === color && <i className={`fas fa-check text-[10px] ${['bg-yellow-200', 'bg-blue-200', 'bg-green-200', 'bg-pink-200', 'bg-purple-200', 'bg-orange-200', 'theme-zen', 'theme-paper', 'theme-coffee', 'theme-sunset', 'theme-hearts'].includes(color) ? 'text-indigo-600' : 'text-white'}`}></i>}
               </button>
             ))}
           </div>
@@ -597,7 +597,7 @@ const App: React.FC = () => {
                   onClick={() => setFilterColor(filterColor === color ? null : color)} 
                   className={`flex-shrink-0 w-10 h-10 rounded-full shadow-sm transition-all active:scale-90 border-2 flex items-center justify-center ${color} ${filterColor === color ? 'border-indigo-600 scale-110 shadow-lg' : 'border-transparent'}`}
                 >
-                  {filterColor === color && <i className={`fas fa-check text-[10px] ${['bg-yellow-200', 'bg-blue-200', 'bg-green-200', 'bg-pink-200', 'bg-purple-200', 'bg-orange-200', 'theme-zen', 'theme-paper'].includes(color) ? 'text-indigo-600' : 'text-white'}`}></i>}
+                  {filterColor === color && <i className={`fas fa-check text-[10px] ${['bg-yellow-200', 'bg-blue-200', 'bg-green-200', 'bg-pink-200', 'bg-purple-200', 'bg-orange-200', 'theme-zen', 'theme-paper', 'theme-coffee', 'theme-sunset', 'theme-hearts'].includes(color) ? 'text-indigo-600' : 'text-white'}`}></i>}
                 </button>
               ))}
             </div>
