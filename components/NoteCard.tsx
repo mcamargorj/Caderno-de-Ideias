@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Note, Language, NoteColor } from '../types';
 import { Button } from './Button';
 import { geminiService } from '../services/geminiService';
@@ -11,15 +11,47 @@ interface NoteCardProps {
   onEdit: (note: Note) => void;
   onDelete: (id: string) => void;
   onUpdate: (id: string, updates: Partial<Note>) => void;
+  // Drag and drop support
+  isDragging?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDragEnd?: () => void;
+  onTouchStart?: (e: React.TouchEvent) => void;
+  onTouchMove?: (e: React.TouchEvent) => void;
+  onTouchEnd?: () => void;
 }
 
-export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDelete, onUpdate }) => {
+export const NoteCard: React.FC<NoteCardProps> = ({ 
+  note, 
+  language, 
+  onEdit, 
+  onDelete, 
+  onUpdate,
+  isDragging,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
+  onTouchStart,
+  onTouchMove,
+  onTouchEnd
+}) => {
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Inline editing state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(note.title);
+  const [editContent, setEditContent] = useState(note.content);
+
   const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setEditTitle(note.title);
+    setEditContent(note.content);
+  }, [note.title, note.content]);
 
   const isDarkTheme = [NoteColor.CELEBRATION, NoteColor.TECH, NoteColor.GALAXY].includes(note.color);
   
@@ -124,21 +156,52 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
     }
   };
 
+  const handleSaveInline = () => {
+    onUpdate(note.id, { title: editTitle, content: editContent });
+    setIsEditing(false);
+  };
+
   const formattedUpdateDate = new Date(note.updatedAt).toLocaleDateString(language, { day: '2-digit', month: 'short' });
   const formattedTargetDate = note.date ? new Date(note.date + 'T00:00:00').toLocaleDateString(language, { day: '2-digit', month: 'short', year: 'numeric' }) : null;
 
   return (
     <div 
       ref={cardRef}
-      className={`sticky-note w-full min-h-[360px] h-auto ${note.color} p-7 shadow-lg relative flex flex-col cursor-pointer border border-black/5 rounded-sm overflow-hidden transition-all hover:shadow-2xl`}
-      onClick={() => onEdit(note)}
+      data-note-id={note.id}
+      draggable={!isEditing}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragEnd={onDragEnd}
+      className={`sticky-note w-full min-h-[360px] h-auto ${note.color} p-7 shadow-lg relative flex flex-col cursor-pointer border border-black/5 rounded-sm overflow-hidden transition-all hover:shadow-2xl ${isDragging ? 'opacity-40 border-dashed border-indigo-500 scale-95' : ''}`}
+      onClick={() => { if (!isEditing) onEdit(note); }}
     >
       {!isDarkTheme && note.color !== NoteColor.PAPER && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-16 h-8 bg-white/30 rotate-1 pointer-events-none backdrop-blur-sm z-10"></div>
       )}
       
       <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6">
-        <div className="flex flex-col gap-1 max-w-full">
+        <div className="flex items-center gap-1 max-w-full">
+          {/* Drag Grip Handle */}
+          <div 
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+            className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-indigo-500 cursor-grab active:cursor-grabbing transition-all mr-1 share-exclude touch-none select-none" 
+            title={language === Language.PT ? "Arrastar para reordenar" : "Drag to reorder"}
+          >
+            <i className="fas fa-grip-vertical text-sm"></i>
+          </div>
+
+          {/* Star Pin Button */}
+          <button 
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onUpdate(note.id, { pinned: !note.pinned }); }} 
+            title={note.pinned ? (language === Language.PT ? "Desafixar" : "Unpin") : (language === Language.PT ? "Fixar (Sempre Visível)" : "Pin (Always Visible)")} 
+            className={`w-8 h-8 flex items-center justify-center rounded-full transition-all hover:bg-black/10 share-exclude ${note.pinned ? 'text-amber-500 scale-110' : iconColor}`}
+          >
+            <i className={`${note.pinned ? 'fas' : 'far'} fa-star text-sm`}></i>
+          </button>
+
           {note.date && (
             <div className={`flex items-center flex-wrap gap-1.5 px-2.5 py-1.5 ${isDarkTheme ? 'bg-white/10 text-white' : 'bg-black/5 text-slate-700'} rounded-lg text-[10px] font-black uppercase tracking-tighter`}>
               <i className="far fa-calendar-check text-xs"></i>
@@ -153,6 +216,16 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
         </div>
 
         <div className="action-icons-container flex flex-wrap justify-end gap-1 ml-auto">
+          {/* Full-edit expand Modal Button */}
+          <button 
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onEdit(note); }} 
+            title={language === Language.PT ? "Editar Detalhes" : "Edit Details"} 
+            className={`w-8 h-8 flex items-center justify-center rounded-full transition-all hover:bg-black/10 ${iconColor}`}
+          >
+            <i className="fas fa-expand text-sm"></i>
+          </button>
+
           {note.date && (
             <button onClick={handleAddToCalendar} title="Lembrete / Calendário" className={`w-8 h-8 flex items-center justify-center rounded-full transition-all hover:bg-black/10 ${iconColor}`}>
               <i className="fas fa-bell text-sm"></i>
@@ -173,15 +246,56 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, language, onEdit, onDe
         </div>
       </div>
 
-      <div className="mb-4">
-        <h3 className={`text-2xl font-black ${textColor} leading-tight tracking-tight break-words`}>
-          {note.title || (language === Language.PT ? 'Insight' : 'Insight')}
-        </h3>
-      </div>
+      {isEditing ? (
+        <div className="flex-1 flex flex-col" onClick={(e) => e.stopPropagation()}>
+          <input
+            type="text"
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            className={`text-2xl font-black ${textColor} leading-tight tracking-tight bg-transparent border-b ${isDarkTheme ? 'border-white/20' : 'border-black/10'} focus:border-indigo-500 focus:outline-none w-full mb-4 py-1`}
+            placeholder={language === Language.PT ? "Título" : "Title"}
+          />
+          <textarea
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            className={`w-full flex-1 bg-transparent border ${isDarkTheme ? 'border-white/20' : 'border-black/10'} rounded p-3 focus:border-indigo-500 focus:outline-none ${subTextColor} text-base font-medium whitespace-pre-wrap leading-relaxed mb-4 resize-none`}
+            placeholder={language === Language.PT ? "Adicione seu insight..." : "Add your insight..."}
+            rows={8}
+          />
+          <div className="flex gap-2 justify-end mb-4">
+            <button
+              type="button"
+              onClick={handleSaveInline}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
+            >
+              <i className="fas fa-check"></i> {language === Language.PT ? "Salvar" : "Save"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEditTitle(note.title);
+                setEditContent(note.content);
+                setIsEditing(false);
+              }}
+              className={`px-4 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-1.5 transition-all active:scale-95 ${isDarkTheme ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-black/5 hover:bg-black/10 text-slate-700'}`}
+            >
+              <i className="fas fa-xmark"></i> {language === Language.PT ? "Cancelar" : "Cancel"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="mb-4 text-left" onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}>
+            <h3 className={`text-2xl font-black ${textColor} leading-tight tracking-tight break-words hover:opacity-85 transition-opacity`}>
+              {note.title || (language === Language.PT ? 'Insight' : 'Insight')}
+            </h3>
+          </div>
 
-      <p className={`${subTextColor} text-base flex-1 font-medium whitespace-pre-wrap leading-relaxed mb-6 line-clamp-[15]`}>
-        {note.content}
-      </p>
+          <p className={`${subTextColor} text-base flex-1 font-medium whitespace-pre-wrap text-left leading-relaxed mb-6 line-clamp-[15] hover:opacity-85 transition-opacity`} onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}>
+            {note.content}
+          </p>
+        </>
+      )}
 
       <div className="mt-auto pt-4">
         <div className={`footer-metadata flex justify-between items-center text-[10px] ${metaTextColor} font-black border-t ${isDarkTheme ? 'border-white/10' : 'border-black/10'} pt-4 uppercase tracking-widest`}>

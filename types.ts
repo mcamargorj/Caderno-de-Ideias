@@ -36,6 +36,7 @@ export interface Note {
   createdAt: number;
   updatedAt: number;
   userId?: string; // ID do usuário para sincronização na nuvem
+  pinned?: boolean;
 }
 
 export interface StorageState {

@@ -100,6 +100,23 @@ const App: React.FC = () => {
   const notifiedNotesRef = useRef<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [pinnedNoteIds, setPinnedNoteIds] = useState<Set<string>>(() => {
+    try {
+      const data = localStorage.getItem('notes_pinned_ids');
+      return data ? new Set(JSON.parse(data)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  const savePinnedLocal = (newSet: Set<string>) => {
+    setPinnedNoteIds(newSet);
+    localStorage.setItem('notes_pinned_ids', JSON.stringify(Array.from(newSet)));
+  };
+
+  const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null);
+  const [touchActiveId, setTouchActiveId] = useState<string | null>(null);
+
   const t = translations[language];
 
   // Helper para obter a data atual em formato YYYY-MM-DD local
@@ -184,7 +201,7 @@ const App: React.FC = () => {
           if (Notification.permission === 'granted') {
             new Notification(`Lembrete: ${note.title || 'Insight'}`, {
               body: note.content.substring(0, 100),
-              icon: 'https://portalmschelp.pythonanywhere.com/static/images/site/img/logo.png'
+              icon: 'https://mathblox.mschelp.com.br/logo_mschelp.png'
             });
             notifiedNotesRef.current.add(note.id);
           }
@@ -219,12 +236,28 @@ const App: React.FC = () => {
     setUser(null);
   };
 
+  const notesWithPinned = useMemo(() => {
+    return notes.map(note => ({
+      ...note,
+      pinned: pinnedNoteIds.has(note.id) || !!note.pinned
+    }));
+  }, [notes, pinnedNoteIds]);
+
   const filteredNotes = useMemo(() => {
-    let result = storageService.searchNotes(notes, searchQuery);
-    if (filterColor) result = result.filter(n => n.color === filterColor);
-    if (selectedDate) result = result.filter(n => n.date === selectedDate);
-    return result;
-  }, [notes, searchQuery, filterColor, selectedDate]);
+    return notesWithPinned.filter(note => {
+      // Pinned notes are ALWAYS visible regardless of filters
+      if (note.pinned) return true;
+
+      const matchesSearch = !searchQuery || 
+        note.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        note.content.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesColor = !filterColor || note.color === filterColor;
+      const matchesDate = !selectedDate || note.date === selectedDate;
+
+      return matchesSearch && matchesColor && matchesDate;
+    });
+  }, [notesWithPinned, searchQuery, filterColor, selectedDate]);
 
   const handleSaveNote = async (data: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>) => {
     if (editingNote) {
@@ -240,8 +273,104 @@ const App: React.FC = () => {
   };
 
   const handleUpdateNoteField = (id: string, updates: Partial<Note>) => {
+    if ('pinned' in updates) {
+      const newPinnedSet = new Set(pinnedNoteIds);
+      if (updates.pinned) {
+        newPinnedSet.add(id);
+      } else {
+        newPinnedSet.delete(id);
+      }
+      savePinnedLocal(newPinnedSet);
+    }
+
     setNotes(prev => prev.map(n => n.id === id ? { ...n, ...updates, updatedAt: Date.now() } : n));
     storageService.updateNote(id, updates, user?.uid);
+  };
+
+  // Drag and drop ordering handlers
+  const handleDragReorder = async (reorderedNotes: Note[]) => {
+    const now = Date.now();
+    const updated = reorderedNotes.map((note, index) => ({
+      ...note,
+      updatedAt: now - index * 60 * 1000 // decreasing timestamps of 1 minute offsets
+    }));
+
+    setNotes(updated);
+
+    if (user) {
+      setIsSyncing(true);
+      try {
+        await Promise.all(
+          updated.map(note => storageService.updateNote(note.id, { updatedAt: note.updatedAt }, user.uid))
+        );
+      } catch (err) {
+        console.error("Dnd save cloud error:", err);
+      } finally {
+        setIsSyncing(false);
+      }
+    } else {
+      const storage = storageService.getStorage();
+      storageService.saveStorage({ ...storage, notes: updated });
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedNoteId(id);
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent, hoveredId: string) => {
+    e.preventDefault();
+    if (!draggedNoteId || draggedNoteId === hoveredId) return;
+
+    const draggedIndex = notes.findIndex(n => n.id === draggedNoteId);
+    const hoveredIndex = notes.findIndex(n => n.id === hoveredId);
+
+    if (draggedIndex !== -1 && hoveredIndex !== -1) {
+      const updatedNotes = [...notes];
+      const [removed] = updatedNotes.splice(draggedIndex, 1);
+      updatedNotes.splice(hoveredIndex, 0, removed);
+      setNotes(updatedNotes);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedNoteId(null);
+    handleDragReorder(notes);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent, id: string) => {
+    setTouchActiveId(id);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchActiveId) return;
+    const touch = e.touches[0];
+    const element = document.elementFromPoint(touch.clientX, touch.clientY);
+    const cardElement = element?.closest('.sticky-note');
+    if (cardElement) {
+      const hoveredId = cardElement.getAttribute('data-note-id');
+      if (hoveredId && hoveredId !== touchActiveId) {
+        const draggedIndex = notes.findIndex(n => n.id === touchActiveId);
+        const hoveredIndex = notes.findIndex(n => n.id === hoveredId);
+        
+        if (draggedIndex !== -1 && hoveredIndex !== -1) {
+          const updatedNotes = [...notes];
+          const [removed] = updatedNotes.splice(draggedIndex, 1);
+          updatedNotes.splice(hoveredIndex, 0, removed);
+          setNotes(updatedNotes);
+        }
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (touchActiveId) {
+      setTouchActiveId(null);
+      handleDragReorder(notes);
+    }
   };
 
   const handleDeleteNote = (id: string) => {
@@ -304,7 +433,7 @@ const App: React.FC = () => {
               onMouseEnter={triggerLogoSpin}
             >
               <img 
-                src="https://portalmschelp.pythonanywhere.com/static/images/site/img/logo.png" 
+                src="https://mathblox.mschelp.com.br/logo_mschelp.png" 
                 alt="Logo" 
                 className={`w-14 h-14 object-contain transition-all drop-shadow-sm ${isLogoSpinning ? 'animate-spin-once' : ''}`} 
               />
@@ -388,7 +517,7 @@ const App: React.FC = () => {
               onMouseEnter={triggerLogoSpin}
             >
               <img 
-                src="https://portalmschelp.pythonanywhere.com/static/images/site/img/logo.png" 
+                src="https://mathblox.mschelp.com.br/logo_mschelp.png" 
                 className={`w-11 h-11 object-contain transition-all ${isLogoSpinning ? 'animate-spin-once' : ''}`} 
                 alt="Logo" 
               />
@@ -484,7 +613,21 @@ const App: React.FC = () => {
           ) : filteredNotes.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-8 md:gap-10 animate-in fade-in duration-1000">
               {filteredNotes.map(note => (
-                <NoteCard key={note.id} note={note} language={language} onEdit={(n) => { setEditingNote(n); setIsFormOpen(true); }} onDelete={handleDeleteNote} onUpdate={handleUpdateNoteField} />
+                <NoteCard 
+                  key={note.id} 
+                  note={note} 
+                  language={language} 
+                  onEdit={(n) => { setEditingNote(n); setIsFormOpen(true); }} 
+                  onDelete={handleDeleteNote} 
+                  onUpdate={handleUpdateNoteField}
+                  isDragging={draggedNoteId === note.id || touchActiveId === note.id}
+                  onDragStart={(e) => handleDragStart(e, note.id)}
+                  onDragOver={(e) => handleDragOver(e, note.id)}
+                  onDragEnd={handleDragEnd}
+                  onTouchStart={(e) => handleTouchStart(e, note.id)}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
+                />
               ))}
             </div>
           ) : (
