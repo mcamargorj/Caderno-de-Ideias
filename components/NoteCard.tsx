@@ -376,13 +376,13 @@ export const NoteCard: React.FC<NoteCardProps> = ({
             type="text"
             value={editTitle}
             onChange={(e) => setEditTitle(e.target.value)}
-            className={`text-2xl font-black ${textColor} leading-tight tracking-tight bg-transparent border-b ${isDarkTheme ? 'border-white/20' : 'border-black/10'} focus:border-indigo-500 focus:outline-none w-full mb-4 py-1`}
+            className={`text-2xl sm:text-2xl text-base font-black ${textColor} leading-tight tracking-tight bg-transparent border-b ${isDarkTheme ? 'border-white/20' : 'border-black/10'} focus:border-indigo-500 focus:outline-none w-full mb-4 py-1`}
             placeholder={language === Language.PT ? "Título" : "Title"}
           />
           <textarea
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
-            className={`w-full flex-1 bg-transparent border ${isDarkTheme ? 'border-white/20' : 'border-black/10'} rounded p-3 focus:border-indigo-500 focus:outline-none ${subTextColor} text-base font-medium whitespace-pre-wrap leading-relaxed mb-4 resize-none`}
+            className={`w-full flex-1 bg-transparent border ${isDarkTheme ? 'border-white/20' : 'border-black/10'} rounded p-3 focus:border-indigo-500 focus:outline-none ${subTextColor} text-base sm:text-sm font-medium whitespace-pre-wrap leading-relaxed mb-4 resize-none`}
             placeholder={language === Language.PT ? "Adicione seu insight..." : "Add your insight..."}
             rows={8}
           />

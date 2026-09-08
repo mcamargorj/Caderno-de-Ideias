@@ -254,7 +254,7 @@ export const NoteForm: React.FC<NoteFormProps> = ({ note, language, onSave, onCa
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder={ft.placeholderTitle}
-              className="w-full px-5 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all font-semibold text-slate-900 placeholder:text-slate-400"
+              className="w-full px-5 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all font-semibold text-slate-900 placeholder:text-slate-400 text-base sm:text-sm"
             />
           </div>
 
@@ -284,7 +284,7 @@ export const NoteForm: React.FC<NoteFormProps> = ({ note, language, onSave, onCa
                 type="time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                className="w-full px-5 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all font-semibold text-slate-900"
+                className="w-full px-5 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all font-semibold text-slate-900 text-base sm:text-sm"
               />
             </div>
           </div>
@@ -306,7 +306,7 @@ export const NoteForm: React.FC<NoteFormProps> = ({ note, language, onSave, onCa
               onChange={(e) => setContent(e.target.value)}
               placeholder={ft.placeholderContent}
               rows={6}
-              className="w-full px-5 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all resize-none font-medium leading-relaxed text-slate-900 placeholder:text-slate-400"
+              className="w-full px-5 py-3 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all resize-none font-medium leading-relaxed text-slate-900 placeholder:text-slate-400 text-base sm:text-sm"
               required
             />
           </div>

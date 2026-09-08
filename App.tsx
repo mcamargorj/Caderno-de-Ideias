@@ -92,7 +92,7 @@ const App: React.FC = () => {
   const [dailyInsight, setDailyInsight] = useState("");
   const [filterColor, setFilterColor] = useState<NoteColor | null>(null);
   const [filterTag, setFilterTag] = useState<string | null>(null);
-  const [currentView, setCurrentView] = useState<'active' | 'trash'>('active');
+  const [currentView, setCurrentView] = useState<'active' | 'trash' | 'favorites'>('active');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   // Rest of state variables ...
@@ -280,14 +280,17 @@ const App: React.FC = () => {
   }, [notes, pinnedNoteIds]);
 
   const filteredNotes = useMemo(() => {
-    return notesWithPinned.filter(note => {
+    const result = notesWithPinned.filter(note => {
       if (currentView === 'trash') {
         if (!note.deletedAt) return false;
       } else {
         if (note.deletedAt) return false;
       }
 
-      // Pinned notes are ALWAYS visible regardless of filters (except in trash)
+      // If view is favorites, only show pinned
+      if (currentView === 'favorites' && !note.pinned) return false;
+
+      // Pinned notes are ALWAYS visible regardless of filters (except in trash/favorites)
       if (note.pinned && currentView === 'active' && !searchQuery && !filterColor && !selectedDate && !filterTag) return true;
 
       const matchesSearch = !searchQuery || 
@@ -299,6 +302,13 @@ const App: React.FC = () => {
       const matchesTag = !filterTag || (note.content.match(/#[\wÀ-ÿ]+/g) || ([] as string[])).includes(filterTag);
 
       return matchesSearch && matchesColor && matchesDate && matchesTag;
+    });
+
+    // Sort: Pinned first, then preserve existing order
+    return result.sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      return 0;
     });
   }, [notesWithPinned, searchQuery, filterColor, selectedDate, currentView, filterTag]);
 
@@ -580,6 +590,9 @@ const App: React.FC = () => {
           <button onClick={() => { setCurrentView('active'); setFilterColor(null); setSelectedDate(null); setFilterTag(null); }} className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all font-black text-xs uppercase ${(currentView === 'active' && !filterColor && !selectedDate && !filterTag) ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800'}`}>
             <i className="fas fa-layer-group"></i> {t.allInsights}
           </button>
+          <button onClick={() => { setCurrentView('favorites'); setFilterColor(null); setSelectedDate(null); setFilterTag(null); }} className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all font-black text-xs uppercase ${currentView === 'favorites' ? 'bg-amber-50 text-amber-600 shadow-sm' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800'}`}>
+            <i className="fas fa-star"></i> Favoritos
+          </button>
           <button onClick={() => { setCurrentView('active'); setSelectedDate(getTodayISO()); setFilterTag(null); }} className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all font-black text-xs uppercase ${selectedDate === getTodayISO() ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800'}`}>
             <i className="fas fa-calendar-day"></i> {t.planningToday}
           </button>
@@ -661,7 +674,7 @@ const App: React.FC = () => {
 
           <div className={`flex-1 max-w-3xl w-full relative group ${!isSearchActive && 'hidden md:block'}`}>
             <i className="fas fa-search absolute left-5 top-1/2 -translate-y-1/2 text-gray-400"></i>
-            <input type="text" placeholder={t.searchPlaceholder} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`w-full pl-12 pr-6 py-4 border rounded-[1.5rem] shadow-sm focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 transition-all outline-none text-sm font-semibold ${isGlobalDark ? 'bg-slate-800 border-slate-600 text-white focus:ring-indigo-500/20 placeholder-gray-500' : 'bg-white border-slate-200 text-gray-900 focus:ring-indigo-50'}`} />
+            <input type="text" placeholder={t.searchPlaceholder} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`w-full pl-12 pr-6 py-4 border rounded-[1.5rem] shadow-sm focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 transition-all outline-none text-base sm:text-sm font-semibold ${isGlobalDark ? 'bg-slate-800 border-slate-600 text-white focus:ring-indigo-500/20 placeholder-gray-500' : 'bg-white border-slate-200 text-gray-900 focus:ring-indigo-50'}`} />
           </div>
 
           <div className="hidden md:flex items-center gap-4">
@@ -706,6 +719,10 @@ const App: React.FC = () => {
                   </button>
                 ))}
               </div>
+            </div>
+          ) : currentView === 'favorites' ? (
+            <div className="flex items-center justify-between mb-4 mt-2">
+              <h2 className="text-xl font-black text-gray-900 dark:text-white tracking-tight"><i className="fas fa-star text-amber-500 mr-2"></i>Favoritos</h2>
             </div>
           ) : (
             <div className="flex items-center justify-between mb-4 mt-2">
@@ -885,22 +902,26 @@ const App: React.FC = () => {
       </button>
 
       {/* TAB BAR MOBILE */}
-      <nav className={`md:hidden fixed bottom-0 left-0 right-0 backdrop-blur-xl border-t px-8 py-4 flex items-center justify-around z-50 shadow-2xl transition-colors ${isGlobalDark ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-gray-100'}`}>
-        <button onClick={() => { setCurrentView('active'); setSelectedDate(null); setFilterColor(null); setFilterTag(null); window.scrollTo({top: 0, behavior: 'smooth'}); }} className={`flex flex-col items-center gap-1.5 ${(currentView === 'active' && !selectedDate && !filterColor && !filterTag) ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}>
+      <nav className={`md:hidden fixed bottom-0 left-0 right-0 backdrop-blur-xl border-t px-6 py-4 flex items-center justify-between z-50 shadow-2xl transition-colors ${isGlobalDark ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-gray-100'}`}>
+        <button onClick={() => { setCurrentView('active'); setSelectedDate(null); setFilterColor(null); setFilterTag(null); window.scrollTo({top: 0, behavior: 'smooth'}); }} className={`flex flex-col items-center gap-1.5 w-1/5 ${(currentView === 'active' && !selectedDate && !filterColor && !filterTag) ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}>
           <i className="fas fa-home text-xl"></i>
-          <span className="text-[10px] font-black tracking-widest uppercase">{t.home}</span>
+          <span className="text-[9px] font-black tracking-widest uppercase">{t.home}</span>
         </button>
-        <button onClick={() => { setCurrentView('active'); setSelectedDate(getTodayISO()); setFilterTag(null); }} className={`flex flex-col items-center gap-1.5 ${(currentView === 'active' && selectedDate === getTodayISO()) ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}>
+        <button onClick={() => { setCurrentView('favorites'); setSelectedDate(null); setFilterColor(null); setFilterTag(null); }} className={`flex flex-col items-center gap-1.5 w-1/5 ${currentView === 'favorites' ? 'text-amber-500 scale-110' : 'text-gray-400'}`}>
+          <i className="fas fa-star text-xl"></i>
+          <span className="text-[9px] font-black tracking-widest uppercase">Favs</span>
+        </button>
+        <button onClick={() => { setCurrentView('active'); setSelectedDate(getTodayISO()); setFilterTag(null); }} className={`flex flex-col items-center gap-1.5 w-1/5 ${(currentView === 'active' && selectedDate === getTodayISO()) ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}>
           <i className="fas fa-calendar-check text-xl"></i>
-          <span className="text-[10px] font-black tracking-widest uppercase">{t.today}</span>
+          <span className="text-[9px] font-black tracking-widest uppercase">{t.today}</span>
         </button>
-        <button onClick={() => { setCurrentView('trash'); setFilterColor(null); setSelectedDate(null); setFilterTag(null); }} className={`flex flex-col items-center gap-1.5 ${currentView === 'trash' ? 'text-red-500 scale-110' : 'text-gray-400'}`}>
+        <button onClick={() => { setCurrentView('trash'); setFilterColor(null); setSelectedDate(null); setFilterTag(null); }} className={`flex flex-col items-center gap-1.5 w-1/5 ${currentView === 'trash' ? 'text-red-500 scale-110' : 'text-gray-400'}`}>
           <i className="fas fa-trash text-xl"></i>
-          <span className="text-[10px] font-black tracking-widest uppercase">Lixo</span>
+          <span className="text-[9px] font-black tracking-widest uppercase">Lixo</span>
         </button>
-        <button onClick={() => setIsSettingsOpen(true)} className={`flex flex-col items-center gap-1.5 ${isSettingsOpen ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}>
+        <button onClick={() => setIsSettingsOpen(true)} className={`flex flex-col items-center gap-1.5 w-1/5 ${isSettingsOpen ? 'text-indigo-600 scale-110' : 'text-gray-400'}`}>
           <i className="fas fa-gear text-xl"></i>
-          <span className="text-[10px] font-black tracking-widest uppercase">{t.settings}</span>
+          <span className="text-[9px] font-black tracking-widest uppercase">Conf</span>
         </button>
       </nav>
     </div>
