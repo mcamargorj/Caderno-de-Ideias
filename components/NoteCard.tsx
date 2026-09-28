@@ -131,89 +131,189 @@ export const NoteCard: React.FC<NoteCardProps> = ({
     } catch (err) {}
   };
 
+  const escapeHtml = (str: string) => {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
+
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isSharing) return;
     setIsSharing(true);
+
+    const formattedUpdateDate = new Date(note.updatedAt).toLocaleDateString(language, { day: '2-digit', month: 'short', year: 'numeric' });
+    const formattedTargetDate = note.date ? new Date(note.date + 'T00:00:00').toLocaleDateString(language, { day: '2-digit', month: 'short', year: 'numeric' }) : null;
+
+    let shareContainer: HTMLDivElement | null = null;
     try {
-      if (cardRef.current) {
-        const tempId = `share-target-${note.id}`;
-        cardRef.current.setAttribute('data-share-id', tempId);
+      // Criamos um container dedicado fora da tela para captura perfeita sem corte de rolagem ou grid
+      shareContainer = document.createElement('div');
+      shareContainer.className = `${note.color} p-8 rounded-2xl shadow-xl flex flex-col relative text-left`;
+      shareContainer.style.position = 'fixed';
+      shareContainer.style.top = '0px';
+      shareContainer.style.left = '-9999px';
+      shareContainer.style.width = '480px';
+      shareContainer.style.maxWidth = '480px';
+      shareContainer.style.height = 'auto';
+      shareContainer.style.minHeight = 'auto';
+      shareContainer.style.overflow = 'visible';
+      shareContainer.style.zIndex = '-99999';
+      shareContainer.style.boxSizing = 'border-box';
+      shareContainer.style.fontFamily = "'Inter', sans-serif";
 
-        const canvas = await html2canvas(cardRef.current, {
-          backgroundColor: isDarkTheme ? '#0f172a' : '#ffffff',
-          scale: 3, 
-          useCORS: true,
-          scrollX: 0,
-          scrollY: 0,
-          logging: false,
-          onclone: (clonedDoc) => {
-            const clonedCard = clonedDoc.querySelector(`[data-share-id="${tempId}"]`) as HTMLElement;
-            if (clonedCard) {
-              // 1. Oculta controles interativos que não devem aparecer na imagem
-              const elementsToHide = clonedCard.querySelectorAll('.action-icons-container, .ai-button-container, .share-exclude');
-              elementsToHide.forEach(el => {
-                (el as HTMLElement).style.display = 'none';
-              });
-              
-              // 2. Remove restrições de corte e altura fixa no card clonado
-              clonedCard.style.overflow = 'visible';
-              clonedCard.style.height = 'auto';
-              clonedCard.style.minHeight = 'auto';
-              clonedCard.style.maxHeight = 'none';
-              clonedCard.style.transform = 'none';
-              clonedCard.style.paddingBottom = '40px'; // Respiro generoso na base do card
+      // Renderiza as linhas do conteúdo (suportando listas de tarefas e quebras de linha)
+      const lines = note.content.split('\n');
+      const renderedLinesHTML = lines.map((line) => {
+        const isUnchecked = line.trim().startsWith('- [ ]');
+        const isChecked = line.trim().match(/^-\s*\[[xX]\]/);
 
-              // 3. Remove limitações de line-clamp e overflow no parágrafo do texto
-              const contentParagraph = clonedCard.querySelector('p') as HTMLElement;
-              if (contentParagraph) {
-                contentParagraph.style.display = 'block';
-                contentParagraph.style.webkitLineClamp = 'unset';
-                contentParagraph.style.webkitBoxOrient = 'unset';
-                contentParagraph.style.overflow = 'visible';
-                contentParagraph.style.height = 'auto';
-                contentParagraph.style.maxHeight = 'none';
-                contentParagraph.style.lineHeight = '1.65';
-                contentParagraph.style.marginBottom = '20px';
-                contentParagraph.style.paddingBottom = '24px'; // Espaço extra para evitar corte dos caracteres inferiores (g, j, p, q, y)
-              }
+        if (isUnchecked || isChecked) {
+          const textContent = line.replace(/^-\s*\[[xX\s]\]\s*/i, '');
+          const boxBg = isChecked ? '#6366f1' : 'transparent';
+          const boxBorder = isChecked ? '#6366f1' : (isDarkTheme ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.3)');
+          const textColorStyle = isChecked ? 'opacity: 0.55; text-decoration: line-through;' : '';
 
-              // 4. Oculta o rodapé vazio para evitar gaps estranhos
-              const footerContainer = clonedCard.querySelector('.footer-metadata')?.parentElement as HTMLElement;
-              if (footerContainer) {
-                footerContainer.style.display = 'none';
-              }
+          return `
+            <div style="display: flex; align-items: flex-start; gap: 10px; margin: 6px 0;">
+              <div style="width: 18px; height: 18px; border-radius: 4px; border: 1.5px solid ${boxBorder}; background: ${boxBg}; display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: bold; margin-top: 2px; flex-shrink: 0;">
+                ${isChecked ? '✓' : ''}
+              </div>
+              <span style="flex: 1; word-break: break-word; line-height: 1.5; ${textColorStyle}">
+                ${escapeHtml(textContent)}
+              </span>
+            </div>
+          `;
+        }
+
+        if (!line.trim()) {
+          return `<div style="min-height: 14px;"></div>`;
+        }
+
+        return `
+          <div style="min-height: 22px; word-break: break-word; white-space: pre-wrap; line-height: 1.6; margin-bottom: 4px;">
+            ${escapeHtml(line)}
+          </div>
+        `;
+      }).join('');
+
+      const tapeHTML = (!isDarkTheme && note.color !== NoteColor.PAPER) ? `
+        <div style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%) rotate(1deg); width: 68px; height: 26px; background: rgba(255, 255, 255, 0.45); backdrop-filter: blur(4px); border-radius: 2px; pointer-events: none; z-index: 10;"></div>
+      ` : '';
+
+      const dateBadgeHTML = note.date ? `
+        <div style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: ${isDarkTheme ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)'}; border-radius: 8px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: ${isDarkTheme ? '#e2e8f0' : '#334155'};">
+          <span>📅 ${formattedTargetDate}</span>
+          ${note.time ? `<span style="border-left: 1px solid currentColor; padding-left: 6px; margin-left: 2px;">⏰ ${escapeHtml(note.time)}</span>` : ''}
+        </div>
+      ` : `
+        <div style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: ${isDarkTheme ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)'}; border-radius: 8px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: ${isDarkTheme ? '#e2e8f0' : '#334155'};">
+          <span>✦ ${language === Language.PT ? 'INSIGHT' : 'INSIGHT'}</span>
+        </div>
+      `;
+
+      const starHTML = note.pinned ? `
+        <div style="display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; color: #f59e0b; font-size: 18px; margin-left: auto;">
+          ★
+        </div>
+      ` : '';
+
+      shareContainer.innerHTML = `
+        ${tapeHTML}
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          ${dateBadgeHTML}
+          <div style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
+            ${starHTML}
+            <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.7; color: ${isDarkTheme ? '#94a3b8' : '#64748b'};">
+              ${language === Language.PT ? 'Caderno de Insights' : 'Insight Notebook'}
+            </span>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <h2 style="font-size: 24px; font-weight: 900; line-height: 1.25; margin: 0; word-break: break-word; color: ${isDarkTheme ? '#ffffff' : '#0f172a'}; letter-spacing: -0.02em;">
+            ${escapeHtml(note.title || 'Insight')}
+          </h2>
+        </div>
+
+        <div style="font-size: 15px; font-weight: 500; color: ${isDarkTheme ? '#cbd5e1' : '#334155'}; margin-bottom: 28px; word-break: break-word; overflow: visible;">
+          ${renderedLinesHTML}
+        </div>
+
+        <div style="border-top: 1px solid ${isDarkTheme ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'}; padding-top: 14px; margin-top: auto; display: flex; justify-content: space-between; align-items: center; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: ${isDarkTheme ? '#94a3b8' : '#64748b'};">
+          <span>${language === Language.PT ? `Atualizado: ${formattedUpdateDate}` : `Updated: ${formattedUpdateDate}`}</span>
+          <span>✦ MSCHelp</span>
+        </div>
+      `;
+
+      document.body.appendChild(shareContainer);
+
+      // Aguarda fontes estarem prontas
+      if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      const canvas = await html2canvas(shareContainer, {
+        scale: 2.5,
+        useCORS: true,
+        logging: false,
+        backgroundColor: null,
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: 1024,
+        windowHeight: 1024,
+      });
+
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+      
+      if (blob) {
+        const fileName = `${(note.title || 'insight').slice(0, 25).replace(/[^a-zA-Z0-9]/g, '_')}.png`;
+        const file = new File([blob], fileName, { type: 'image/png' });
+        const shareText = `*${note.title ? note.title.toUpperCase() : 'INSIGHT'}*\n${note.date ? `📅 ${formattedTargetDate || note.date} ${note.time || ''}\n` : ''}\n${note.content}\n\n_Compartilhado via Caderno de Insights_`;
+
+        if (navigator.share) {
+          try {
+            const shareData: ShareData = {
+              title: note.title || 'Insight',
+              text: shareText
+            };
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              shareData.files = [file];
             }
-          }
-        });
 
-        cardRef.current.removeAttribute('data-share-id');
-        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
-        
-        if (blob) {
-          const fileName = `${(note.title || 'insight').slice(0, 25).replace(/[^a-zA-Z0-9]/g, '_')}.png`;
-          const file = new File([blob], fileName, { type: 'image/png' });
-
-          if (navigator.share) {
-            try {
-              await navigator.share({ files: [file], title: note.title || 'Insight' });
-            } catch (shareErr) {
-              // Se o usuário cancelou o compartilhamento nativo, não faz nada
-              console.log("Compartilhamento nativo cancelado ou falhou:", shareErr);
+            await navigator.share(shareData);
+            return;
+          } catch (shareErr: any) {
+            if (shareErr.name === 'AbortError') {
+              return;
             }
-          } else {
-            // Fallback para download da imagem caso o navegador não suporte Web Share API
-            const link = document.createElement('a');
-            link.download = fileName;
-            link.href = URL.createObjectURL(blob);
-            link.click();
-            URL.revokeObjectURL(link.href);
+            console.log("Compartilhamento nativo falhou:", shareErr);
           }
         }
+
+        // Fallback: download da imagem e cópia do texto
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = URL.createObjectURL(blob);
+        link.click();
+        URL.revokeObjectURL(link.href);
+
+        try {
+          await navigator.clipboard.writeText(shareText);
+        } catch {}
       }
     } catch (e) {
       console.error("Erro ao compartilhar", e);
     } finally {
+      if (shareContainer && shareContainer.parentNode) {
+        shareContainer.parentNode.removeChild(shareContainer);
+      }
       setIsSharing(false);
     }
   };
